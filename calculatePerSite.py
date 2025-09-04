@@ -1,22 +1,4 @@
 #!/usr/bin/env python3
-# edna_embeddings_pipeline.py
-# End-to-end pipeline:
-#   1) Load DNABERT-S fine-tuned models (12S, 16S) from Hugging Face
-#   2) Embed ASVs -> Parquet
-#   3) Pool to site embeddings (per-assay)
-#   4) Optional fusion (12S+16S concatenation)
-#   5) Optional t-SNE / UMAP on site vectors
-#
-# Inputs:
-#   - asv_sequences.[csv|parquet] with columns: asv_id, assay, sequence
-#   - reads_long.[csv|parquet]   with columns: site_id, assay, asv_id, reads
-#
-# Outputs (under --outdir):
-#   - asv_embeddings_{assay}.parquet
-#   - site_embeddings_{assay}.parquet
-#   - site_embeddings_fused.parquet (if both assays present)
-#   - tsne_{assay}.csv / umap_{assay}.csv
-#   - tsne_fused.csv / umap_fused.csv
 
 import os
 import math
@@ -39,8 +21,6 @@ except Exception:
     HAS_UMAP = False
 
 
-# ------------------------- Utils -------------------------
-
 def seed_everything(seed=42):
     import random
     random.seed(seed)
@@ -55,19 +35,39 @@ def read_table(path: Path) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
+def process_excel_to_dataframes(excel_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Process FAIRe Excel file to create ASV sequences and reads DataFrames.
+    Returns: (asv_seqs_df, reads_long_df)
+    """
+    asvs = pd.read_excel(excel_path, sheet_name='taxaRaw', skiprows=2)
+    asv_seqs = asvs.loc[:, ['seq_id', 'dna_sequence']]
+    asv_seqs = asv_seqs.drop_duplicates()
+    asv_seqs = asv_seqs.rename(columns={'seq_id': 'asv_id', 'dna_sequence': 'sequence'})
+    asv_seqs['assay'] = '12S'
+    asv_seqs = asv_seqs[['asv_id', 'assay', 'sequence']]
+    
+    reads = pd.read_excel(excel_path, sheet_name='otuRaw')
+    reads = reads.drop('Unnamed: 0', axis=1)
+    reads = reads.rename(columns={'ASV': 'asv_id'})
+    reads_long = reads.drop('ASV_sequence', axis=1).melt(id_vars=['asv_id'], var_name='site_id', value_name='reads')
+    reads_long['assay'] = '12S'
+    reads_long = reads_long[['site_id', 'assay', 'asv_id', 'reads']]
+    
+    return asv_seqs, reads_long
+
+
 def write_parquet(df: pd.DataFrame, path: Path):
     df.to_parquet(path, index=False)
     print(f"[Saved] {path}")
 
 
 def clean_seq(seq: str) -> str:
-    # Uppercase and constrain to A/C/G/T/N
     seq = (seq or "").upper()
     allowed = set("ACGTN")
     return "".join(ch if ch in allowed else "N" for ch in seq)
 
 
-# -------------------- HF model loading --------------------
 
 def load_model_and_tokenizer(assay: str, base_config: str, model_name: str, cache_dir: str = None):
     config = AutoConfig.from_pretrained(base_config, trust_remote_code=True, cache_dir=cache_dir)
@@ -109,6 +109,7 @@ def embed_sequences(df: pd.DataFrame,
             out = model(**enc)
 
         # Handle both tuple output and ModelOutput with last_hidden_state
+        # TODO: is this correct??
         if isinstance(out, tuple):
             hidden = out[0]  # First element is typically the hidden states
         else:
@@ -136,9 +137,9 @@ def embed_sequences(df: pd.DataFrame,
     return emb_df
 
 
-# -------------------- Site pooling ops --------------------
 
 def weights_from_counts(counts, mode="hellinger", tau=3.0, eps=1e-12):
+    # TODO: I think we need only hellinger...
     c = np.asarray(counts, dtype=float)
     if c.sum() <= eps:
         return np.ones_like(c) / max(len(c), 1)
@@ -245,7 +246,6 @@ def compute_site_embeddings_from_dfs(reads_long: pd.DataFrame,
     return pd.DataFrame(records)
 
 
-# -------------------- Ordination (t-SNE / UMAP) --------------------
 
 def run_tsne(site_df: pd.DataFrame,
              label_cols: List[str],
@@ -282,35 +282,32 @@ def run_umap(site_df: pd.DataFrame,
     return out
 
 
-# ------------------------- Main -------------------------
 
 def main():
-    parser = argparse.ArgumentParser(description="eDNA DNABERT-S embedding pipeline (ASVs -> sites -> t-SNE/UMAP)")
-    parser.add_argument("--asv-seqs", required=True, type=Path,
-                        help="Path to asv_sequences.[csv|parquet] (columns: asv_id, assay, sequence)")
-    parser.add_argument("--reads", required=True, type=Path,
-                        help="Path to reads_long.[csv|parquet] (columns: site_id, assay, asv_id, reads)")
+    parser = argparse.ArgumentParser(description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)")
+    parser.add_argument("--excel-file", required=True, type=Path,
+                        help="Path to FAIRe-formatted Excel file with taxaRaw and otuRaw sheets")
+    parser.add_argument("--asv-seqs", type=Path,
+                        help="Optional: Path to asv_sequences.[csv|parquet] (columns: asv_id, assay, sequence)")
+    parser.add_argument("--reads", type=Path,
+                        help="Optional: Path to reads_long.[csv|parquet] (columns: site_id, assay, asv_id, reads)")
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory")
     parser.add_argument("--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)")
 
-    # Models
     parser.add_argument("--model-12s", default="OceanOmics/eDNABERT-S_12S")
     parser.add_argument("--model-16s", default="OceanOmics/eDNABERT-S_16S")
     parser.add_argument("--base-config", default="zhihan1996/DNABERT-S")
 
-    # Embedding options
     parser.add_argument("--pooling-token", default="mean", choices=["mean", "cls"])
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--use-amp", action="store_true", help="Enable mixed precision on CUDA")
     parser.add_argument("--max-length", type=int, default=512)
 
-    # Site pooling
     parser.add_argument("--weight-mode", default="hellinger",
                         choices=["hellinger", "log", "relative", "softmax_tau3"])
     parser.add_argument("--site-pooling", default="l2_weighted_mean",
                         choices=["l2_weighted_mean", "weighted_mean", "gem_p2", "gem_p3"])
 
-    # Ordination
     parser.add_argument("--run-tsne", action="store_true")
     parser.add_argument("--run-umap", action="store_true")
     parser.add_argument("--perplexity", type=int, default=30)
@@ -318,7 +315,6 @@ def main():
     parser.add_argument("--metric", default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--seed", type=int, default=42)
 
-    # Fusion
     parser.add_argument("--fuse", default="concat", choices=["none", "concat"],
                         help="How to fuse 12S+16S site vectors (concat or none)")
     args = parser.parse_args()
@@ -326,11 +322,17 @@ def main():
     seed_everything(args.seed)
     args.outdir.mkdir(parents=True, exist_ok=True)
 
-    # 1) Load inputs
-    asv_seqs = read_table(args.asv_seqs)
-    reads_long = read_table(args.reads)
+    if args.excel_file:
+        print(f"[Loading] Processing Excel file: {args.excel_file}")
+        asv_seqs, reads_long = process_excel_to_dataframes(args.excel_file)
+        print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
+    elif args.asv_seqs and args.reads:
+        print(f"[Loading] Using parquet/csv files")
+        asv_seqs = read_table(args.asv_seqs)
+        reads_long = read_table(args.reads)
+    else:
+        raise ValueError("Either --excel-file or both --asv-seqs and --reads must be provided")
 
-    # Basic sanity
     for cols, name in [({"asv_id", "assay", "sequence"}, "asv_sequences"),
                        ({"site_id", "assay", "asv_id", "reads"}, "reads_long")]:
         have = set(asv_seqs.columns) if name == "asv_sequences" else set(reads_long.columns)
@@ -338,7 +340,6 @@ def main():
         if missing:
             raise ValueError(f"{name} is missing columns: {missing}")
 
-    # Filter to assays we have models for
     assays_available = []
     assay_models: Dict[str, str] = {}
     if (asv_seqs["assay"] == "12S").any():
@@ -352,7 +353,7 @@ def main():
 
     print(f"[Assays] Detected in input: {assays_available}")
 
-    # 2) Embed ASVs per assay
+    # embed ASVs per assay
     asv_embeddings_paths = {}
     for assay in assays_available:
         print(f"\n=== Embedding {assay} ASVs ===")
@@ -368,7 +369,7 @@ def main():
         write_parquet(emb_df, outp)
         asv_embeddings_paths[assay] = outp
 
-    # 3) Pool to site embeddings per assay
+    # pool to site embeddings per assay
     site_embeddings: Dict[str, pd.DataFrame] = {}
     for assay in assays_available:
         print(f"\n=== Site pooling for {assay} ===")
@@ -385,7 +386,7 @@ def main():
         write_parquet(site_df, outp)
         site_embeddings[assay] = site_df
 
-    # 4) Optional fusion (12S+16S concatenation)
+    # optional fusion/12S+16S concatenation
     fused_df = pd.DataFrame()
     if args.fuse == "concat" and {"12S", "16S"} <= set(site_embeddings.keys()):
         print("\n=== Fusing 12S+16S by concatenation ===")
@@ -408,7 +409,7 @@ def main():
     else:
         print("\n[Info] Fusion skipped (either --fuse none or not both assays present).")
 
-    # 5) Optional t-SNE / UMAP on site vectors
+    # optional t-SNE / UMAP on site vectors
     def _run_ordinations(tag: str, df: pd.DataFrame):
         if df.empty:
             print(f"[{tag}] No data—skipping ordinations")
