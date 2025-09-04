@@ -63,6 +63,10 @@ There's a conda environment with the DNABERT-S needed dependencies in DNABERT_S.
 
 The format of the input paraquet files is fairly easy (see the help), there's a script in `util/makeParquetFiles.py` with some example code.
 
+# AI statement
+
+Most of this code is written by GPT5 after a long discussion! Every mode has heaps options, human-me would've never done that. 
+
 # Example data
 
 This repository comes with a FAIRe-formatted excel sheet from an OceanOmics transect from Perth to the Cocos Keeling Islands, only 12S (MiFish-U, Miya et al.)
