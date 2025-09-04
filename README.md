@@ -5,6 +5,12 @@ This script takes a FAIRe-formatted Excel sheet with ASV results of 12S (MiFishU
 
 It then stores the per-site embeddings in a paraquet file, and optionally runs tSNE or UMAP on those embeddings to get per-site representations.
 
+This is what the tSNE clustering of those per-site embeddings looks like:
+
+<img width="1024" height="653" alt="image" src="https://github.com/user-attachments/assets/dcbb4415-f25d-46f7-a10b-d9c547ec437e" />
+
+Each dot is one site, colored by their latitude/longitude.
+
 # Usage
 
     python calculate.py --cache-dir './cache' --asv-seqs asv_seqs.12S.parquet --reads asv_reads.12S.parquet --run-tsne   --outdir './results' --run-umap > stdout 2> stderr
