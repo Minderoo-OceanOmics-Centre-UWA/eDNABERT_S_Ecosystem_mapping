@@ -53,6 +53,11 @@ optional arguments:
   --fuse {none,concat}  How to fuse 12S+16S site vectors (concat or none)
 </pre>
 
+# Results
+
+The results folder will contain at least two files: the per-ASV embeddings in parquet and the per-site embeddings in parquet.
+If you've turned on `run-tsne` and/or `run-umap`, there will be CSV files with TSNE1/TSNE2 and UMAP1/UMAP2 values for all sites.
+
 # Installation
 
 There's a conda environment with the DNABERT-S needed dependencies in DNABERT_S.yml
