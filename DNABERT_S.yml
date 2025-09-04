@@ -126,6 +126,8 @@ dependencies:
       - umap-learn==0.5.7
       - urllib3==2.2.2
       - wrapt==1.16.0
+      - xgboost==2.1.4
       - xxhash==3.4.1
       - yarl==1.9.4
       - zipp==3.23.0
+prefix: /data/tools/miniconda3_pbayer/envs/DNABERT_S

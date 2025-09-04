@@ -72,6 +72,10 @@ The format of the input paraquet files is fairly easy (see the help), there's a 
 
 Most of this code is written by GPT5 after a long discussion! Every mode has heaps options, human-me would've never done that. 
 
+# Regression
+
+I am working on predicting latitude/longitude from the site embeddings alone. That is happening in `regress.py`. I am unclear how to handle replicates best as there's a lot of variability in between - by not accounting for replicates I get a test R2 of about 0.7, with grouped KFold stratification by replicate it goes down to 0.5 (better). 
+
 # Example data
 
 This repository comes with a FAIRe-formatted excel sheet from an OceanOmics transect from Perth to the Cocos Keeling Islands, only 12S (MiFish-U, Miya et al.)
