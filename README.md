@@ -13,7 +13,8 @@ Each dot is one site, colored by their latitude/longitude.
 
 # Usage
 
-    python calculate.py --cache-dir './cache' --asv-seqs asv_seqs.12S.parquet --reads asv_reads.12S.parquet --run-tsne   --outdir './results' --run-umap > stdout 2> stderr
+    python calculate.py --cache-dir './cache' --asv-seqs asv_seqs.12S.parquet 
+       --reads asv_reads.12S.parquet --run-tsne   --outdir './results' --run-umap
 
 
 <pre>
@@ -61,8 +62,6 @@ There's a conda environment with the DNABERT-S needed dependencies in DNABERT_S.
 # Making your own paraquet file
 
 The format of the input paraquet files is fairly easy (see the help), there's a script in `util/makeParquetFiles.py` with some example code.
-
-
 
 # Example data
 
