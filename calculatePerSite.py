@@ -35,26 +35,78 @@ def read_table(path: Path) -> pd.DataFrame:
     return pd.read_parquet(path)
 
 
-def process_excel_to_dataframes(excel_path: Path) -> tuple[pd.DataFrame, pd.DataFrame]:
+def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
-    Process FAIRe Excel file to create ASV sequences and reads DataFrames.
+    Process Excel files by assay to create ASV sequences and reads DataFrames.
+    Args:
+        files_by_assay: Dictionary mapping assay names ('12S', '16S') to lists of file paths
     Returns: (asv_seqs_df, reads_long_df)
     """
-    asvs = pd.read_excel(excel_path, sheet_name='taxaRaw', skiprows=2)
-    asv_seqs = asvs.loc[:, ['seq_id', 'dna_sequence']]
-    asv_seqs = asv_seqs.drop_duplicates()
-    asv_seqs = asv_seqs.rename(columns={'seq_id': 'asv_id', 'dna_sequence': 'sequence'})
-    asv_seqs['assay'] = '12S'
-    asv_seqs = asv_seqs[['asv_id', 'assay', 'sequence']]
+    all_asv_seqs = []
+    all_reads_long = []
     
-    reads = pd.read_excel(excel_path, sheet_name='otuRaw')
-    reads = reads.drop('Unnamed: 0', axis=1)
-    reads = reads.rename(columns={'ASV': 'asv_id'})
-    reads_long = reads.drop('ASV_sequence', axis=1).melt(id_vars=['asv_id'], var_name='site_id', value_name='reads')
-    reads_long['assay'] = '12S'
-    reads_long = reads_long[['site_id', 'assay', 'asv_id', 'reads']]
+    for assay, excel_paths in files_by_assay.items():
+        if not excel_paths:
+            continue
+            
+        print(f"[Processing] {len(excel_paths)} {assay} files")
+        
+        for excel_path in excel_paths:
+            print(f"[Processing] {assay} file: {excel_path}")
+            
+            # Process ASV sequences from taxaRaw sheet
+            asvs = pd.read_excel(excel_path, sheet_name='taxaRaw', skiprows=2)
+            asv_seqs = asvs.loc[:, ['seq_id', 'dna_sequence']]
+            asv_seqs = asv_seqs.drop_duplicates()
+            asv_seqs = asv_seqs.rename(columns={'seq_id': 'asv_id', 'dna_sequence': 'sequence'})
+            asv_seqs['assay'] = assay
+            asv_seqs['source_file'] = excel_path.name  # Track source file
+            asv_seqs = asv_seqs[['asv_id', 'assay', 'sequence', 'source_file']]
+            all_asv_seqs.append(asv_seqs)
+            
+            # Process reads from otuRaw sheet
+            reads = pd.read_excel(excel_path, sheet_name='otuRaw')
+            reads = reads.drop('Unnamed: 0', axis=1)
+            reads = reads.rename(columns={'ASV': 'asv_id'})
+            reads_long = reads.drop('ASV_sequence', axis=1).melt(id_vars=['asv_id'], var_name='site_id', value_name='reads')
+            reads_long['assay'] = assay
+            reads_long['source_file'] = excel_path.name  # Track source file
+            reads_long = reads_long[['site_id', 'assay', 'asv_id', 'reads', 'source_file']]
+            all_reads_long.append(reads_long)
+            
+            print(f"[Loaded] {len(asv_seqs)} {assay} ASVs, {len(reads_long)} site-ASV records from {excel_path.name}")
     
-    return asv_seqs, reads_long
+    if not all_asv_seqs:
+        raise ValueError("No Excel files were processed. Please provide --12s-files and/or --16s-files")
+    
+    # Concatenate all dataframes
+    combined_asv_seqs = pd.concat(all_asv_seqs, ignore_index=True)
+    combined_reads_long = pd.concat(all_reads_long, ignore_index=True)
+    
+    # Remove duplicates (same ASV across files should be identical)
+    combined_asv_seqs = combined_asv_seqs.drop_duplicates(subset=['asv_id', 'assay'])
+    
+    # Drop source_file column for final output (keep internal structure consistent)
+    combined_asv_seqs = combined_asv_seqs[['asv_id', 'assay', 'sequence']]
+    combined_reads_long = combined_reads_long[['site_id', 'assay', 'asv_id', 'reads']]
+    
+    # Count by assay
+    assay_counts = combined_asv_seqs['assay'].value_counts()
+    print(f"[Combined] Total: {len(combined_asv_seqs)} unique ASVs ({', '.join([f'{count} {assay}' for assay, count in assay_counts.items()])})")
+    print(f"[Combined] Total: {len(combined_reads_long)} site-ASV records")
+    
+    return combined_asv_seqs, combined_reads_long
+
+
+def process_excel_to_dataframes_legacy(excel_paths) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Legacy function for backwards compatibility with old argument format."""
+    # Convert to new format (assume 12S for backwards compatibility)
+    if isinstance(excel_paths, (str, Path)):
+        excel_paths = [Path(excel_paths)]
+    else:
+        excel_paths = [Path(p) for p in excel_paths]
+    files_by_assay = {'12S': excel_paths}
+    return process_excel_to_dataframes(files_by_assay)
 
 
 def write_parquet(df: pd.DataFrame, path: Path):
@@ -285,8 +337,14 @@ def run_umap(site_df: pd.DataFrame,
 
 def main():
     parser = argparse.ArgumentParser(description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)")
-    parser.add_argument("--excel-file", required=True, type=Path,
-                        help="Path to FAIRe-formatted Excel file with taxaRaw and otuRaw sheets")
+    parser.add_argument("--12s-files", nargs='*', type=Path, default=[],
+                        help="Path(s) to Excel file(s) containing 12S data")
+    parser.add_argument("--16s-files", nargs='*', type=Path, default=[],
+                        help="Path(s) to Excel file(s) containing 16S data")
+    parser.add_argument("--excel-files", nargs='+', type=Path,
+                        help="Deprecated: Use --12s-files and --16s-files instead")
+    parser.add_argument("--excel-file", type=Path,
+                        help="Deprecated: Use --12s-files and --16s-files instead")
     parser.add_argument("--asv-seqs", type=Path,
                         help="Optional: Path to asv_sequences.[csv|parquet] (columns: asv_id, assay, sequence)")
     parser.add_argument("--reads", type=Path,
@@ -322,16 +380,38 @@ def main():
     seed_everything(args.seed)
     args.outdir.mkdir(parents=True, exist_ok=True)
 
-    if args.excel_file:
-        print(f"[Loading] Processing Excel file: {args.excel_file}")
-        asv_seqs, reads_long = process_excel_to_dataframes(args.excel_file)
+    # Check for new assay-specific arguments
+    if hasattr(args, '12s_files') and args.__dict__['12s_files'] or hasattr(args, '16s_files') and args.__dict__['16s_files']:
+        # New format: separate files by assay
+        files_by_assay = {}
+        if hasattr(args, '12s_files') and args.__dict__['12s_files']:
+            files_by_assay['12S'] = args.__dict__['12s_files']
+        if hasattr(args, '16s_files') and args.__dict__['16s_files']:
+            files_by_assay['16S'] = args.__dict__['16s_files']
+        
+        print(f"[Loading] Processing Excel files by assay")
+        asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay)
         print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
+        
+    elif args.excel_files:
+        # Legacy format: assume 12S
+        print(f"[Loading] Processing {len(args.excel_files)} Excel files (legacy format, assuming 12S)")
+        asv_seqs, reads_long = process_excel_to_dataframes_legacy(args.excel_files)
+        print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
+        
+    elif args.excel_file:
+        # Legacy format: assume 12S
+        print(f"[Loading] Processing single Excel file: {args.excel_file} (legacy format, assuming 12S)")
+        asv_seqs, reads_long = process_excel_to_dataframes_legacy(args.excel_file)
+        print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
+        
     elif args.asv_seqs and args.reads:
         print(f"[Loading] Using parquet/csv files")
         asv_seqs = read_table(args.asv_seqs)
         reads_long = read_table(args.reads)
+        
     else:
-        raise ValueError("Either --excel-file or both --asv-seqs and --reads must be provided")
+        raise ValueError("Please provide either --12s-files/--16s-files, or --asv-seqs and --reads, or legacy --excel-files/--excel-file")
 
     for cols, name in [({"asv_id", "assay", "sequence"}, "asv_sequences"),
                        ({"site_id", "assay", "asv_id", "reads"}, "reads_long")]:
