@@ -89,5 +89,3 @@ I am working on predicting latitude/longitude from the site embeddings alone. Th
 # Example data
 
 This repository comes with a FAIRe-formatted excel sheet from an OceanOmics transect from Perth to the Cocos Keeling Islands, only 12S (MiFish-U, Miya et al.)
-
-OceanOmics - Computational Biology\Bioinformatics\Results\V10_CKIP1\results_MiFishU_curateddb\07-faire
