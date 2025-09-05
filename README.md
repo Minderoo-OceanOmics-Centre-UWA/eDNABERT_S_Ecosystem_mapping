@@ -17,13 +17,13 @@ Each dot is one site, colored by their latitude/longitude.
     python calculate.py --cache-dir './cache' --12s-files run1.xlsx --16s-files run2.xlsx
         --run-tsne   --outdir './results' --run-umap
 
-
 <pre>
-usage: calculatePerSite.py [-h] [--12s-files [12S_FILES ...]] [--16s-files [16S_FILES ...]] --outdir OUTDIR [--cache-dir CACHE_DIR] [--model-12s MODEL_12S]
-                           [--model-16s MODEL_16S] [--base-config BASE_CONFIG] [--pooling-token {mean,cls}] [--batch-size BATCH_SIZE] [--use-amp]
-                           [--max-length MAX_LENGTH] [--weight-mode {hellinger,log,relative,softmax_tau3}]
-                           [--site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3}] [--run-tsne] [--run-umap] [--perplexity PERPLEXITY]
-                           [--n-neighbors N_NEIGHBORS] [--metric {cosine,euclidean}] [--seed SEED] [--fuse {none,concat}]
+usage: calculatePerSite.py [-h] [--12s-files [12S_FILES ...]] [--16s-files [16S_FILES ...]] --outdir OUTDIR [--cache-dir CACHE_DIR]
+                           [--min-asv-length MIN_ASV_LENGTH] [--max-asv-length MAX_ASV_LENGTH] [--force] [--model-12s MODEL_12S] [--model-16s MODEL_16S]
+                           [--base-config BASE_CONFIG] [--pooling-token {mean,cls}] [--batch-size BATCH_SIZE] [--use-amp] [--max-length MAX_LENGTH]
+                           [--weight-mode {hellinger,log,relative,softmax_tau3}] [--site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3}]
+                           [--run-tsne] [--run-umap] [--perplexity PERPLEXITY] [--n-neighbors N_NEIGHBORS] [--metric {cosine,euclidean}] [--seed SEED]
+                           [--fuse {none,concat}]
 
 eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)
 
@@ -36,6 +36,11 @@ optional arguments:
   --outdir OUTDIR       Output directory
   --cache-dir CACHE_DIR
                         HuggingFace cache dir (optional)
+  --min-asv-length MIN_ASV_LENGTH
+                        Minimum ASV sequence length (optional)
+  --max-asv-length MAX_ASV_LENGTH
+                        Maximum ASV sequence length (optional)
+  --force               Force recalculation of all steps, ignoring existing intermediate files
   --model-12s MODEL_12S
   --model-16s MODEL_16S
   --base-config BASE_CONFIG
@@ -43,12 +48,15 @@ optional arguments:
   --batch-size BATCH_SIZE
   --use-amp             Enable mixed precision on CUDA
   --max-length MAX_LENGTH
+                        Longest tokenized length for the tokenizer
   --weight-mode {hellinger,log,relative,softmax_tau3}
   --site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3}
   --run-tsne
   --run-umap
   --perplexity PERPLEXITY
+                        Perplexity setting for tSNE
   --n-neighbors N_NEIGHBORS
+                        Number of neighbours for UMAP
   --metric {cosine,euclidean}
   --seed SEED
   --fuse {none,concat}  How to fuse 12S+16S site vectors (concat or none)
@@ -59,6 +67,10 @@ optional arguments:
 
 The results folder will contain at least two files: the per-ASV embeddings in parquet and the per-site embeddings in parquet.
 If you've turned on `run-tsne` and/or `run-umap`, there will be CSV files with TSNE1/TSNE2 and UMAP1/UMAP2 values for all sites.
+
+## Runtime
+
+It usually runs only for a few minutes, but so far I've only tested it on systems without GPUs.
 
 # Installation
 

@@ -8,6 +8,11 @@ from typing import Dict, List
 
 import numpy as np
 import pandas as pd
+import openpyxl
+# get rid of boring user warning
+# UserWarning: Data Validation extension is not supported and will be removed
+openpyxl.reader.excel.warnings.simplefilter(action='ignore')
+
 from tqdm import tqdm
 
 import torch
@@ -30,11 +35,13 @@ def seed_everything(seed=42):
 
 
 
-def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[pd.DataFrame, pd.DataFrame]:
+def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]], min_length: int = None, max_length: int = None) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Process Excel files by assay to create ASV sequences and reads DataFrames.
     Args:
         files_by_assay: Dictionary mapping assay names ('12S', '16S') to lists of file paths
+        min_length: Minimum ASV sequence length (optional)
+        max_length: Maximum ASV sequence length (optional)
     Returns: (asv_seqs_df, reads_long_df)
     """
     all_asv_seqs = []
@@ -54,19 +61,37 @@ def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[
             asv_seqs = asvs.loc[:, ['seq_id', 'dna_sequence']]
             asv_seqs = asv_seqs.drop_duplicates()
             asv_seqs = asv_seqs.rename(columns={'seq_id': 'asv_id', 'dna_sequence': 'sequence'})
+            
+            # Apply length filtering if specified
+            initial_count = len(asv_seqs)
+            if min_length is not None:
+                asv_seqs = asv_seqs[asv_seqs['sequence'].str.len() >= min_length]
+            if max_length is not None:
+                asv_seqs = asv_seqs[asv_seqs['sequence'].str.len() <= max_length]
+            
+            filtered_count = len(asv_seqs)
+            if initial_count != filtered_count:
+                print(f"[Filtered] {assay}: {initial_count} -> {filtered_count} ASVs (length filter: {min_length or 'no min'} - {max_length or 'no max'})")
+            
             asv_seqs['assay'] = assay
             asv_seqs['source_file'] = excel_path.name  # Track source file
             asv_seqs = asv_seqs[['asv_id', 'assay', 'sequence', 'source_file']]
-            all_asv_seqs.append(asv_seqs)
             
             # Process reads from otuRaw sheet
             reads = pd.read_excel(excel_path, sheet_name='otuRaw')
             reads = reads.drop('Unnamed: 0', axis=1)
             reads = reads.rename(columns={'ASV': 'asv_id'})
             reads_long = reads.drop('ASV_sequence', axis=1).melt(id_vars=['asv_id'], var_name='site_id', value_name='reads')
+            
+            # Filter reads to only include ASVs that passed length filtering
+            valid_asvs = set(asv_seqs['asv_id'])
+            reads_long = reads_long[reads_long['asv_id'].isin(valid_asvs)]
+            
             reads_long['assay'] = assay
             reads_long['source_file'] = excel_path.name  # Track source file
             reads_long = reads_long[['site_id', 'assay', 'asv_id', 'reads', 'source_file']]
+            
+            all_asv_seqs.append(asv_seqs)
             all_reads_long.append(reads_long)
             
             print(f"[Loaded] {len(asv_seqs)} {assay} ASVs, {len(reads_long)} site-ASV records from {excel_path.name}")
@@ -98,6 +123,32 @@ def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[
 def write_parquet(df: pd.DataFrame, path: Path):
     df.to_parquet(path, index=False)
     print(f"[Saved] {path}")
+
+
+def check_intermediate_files(outdir: Path, assays_available: List[str]) -> Dict[str, bool]:
+    """
+    Check which intermediate files already exist.
+    Returns: Dictionary indicating which steps can be resumed
+    """
+    status = {
+        'can_resume_asv_embeddings': {},
+        'can_resume_site_embeddings': {},
+        'can_resume_fused': False
+    }
+    
+    # Check ASV embedding files
+    for assay in assays_available:
+        asv_emb_path = outdir / f"asv_embeddings_{assay}.parquet"
+        site_emb_path = outdir / f"site_embeddings_{assay}.parquet"
+        
+        status['can_resume_asv_embeddings'][assay] = asv_emb_path.exists()
+        status['can_resume_site_embeddings'][assay] = site_emb_path.exists()
+    
+    # Check fused file
+    fused_path = outdir / "site_embeddings_fused.parquet"
+    status['can_resume_fused'] = fused_path.exists()
+    
+    return status
 
 
 def clean_seq(seq: str) -> str:
@@ -329,6 +380,15 @@ def main():
                         help="Path(s) to Excel file(s) containing 16S data")
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory")
     parser.add_argument("--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)")
+    
+    parser.add_argument("--min-asv-length", type=int, default=None,
+                        help="Minimum ASV sequence length (optional)")
+    parser.add_argument("--max-asv-length", type=int, default=None,
+                        help="Maximum ASV sequence length (optional)")
+    
+    # Resume functionality
+    parser.add_argument("--force", action="store_true",
+                        help="Force recalculation of all steps, ignoring existing intermediate files")
 
     parser.add_argument("--model-12s", default="OceanOmics/eDNABERT-S_12S")
     parser.add_argument("--model-16s", default="OceanOmics/eDNABERT-S_16S")
@@ -337,7 +397,7 @@ def main():
     parser.add_argument("--pooling-token", default="mean", choices=["mean", "cls"])
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--use-amp", action="store_true", help="Enable mixed precision on CUDA")
-    parser.add_argument("--max-length", type=int, default=512)
+    parser.add_argument("--max-length", type=int, default=512, help='Longest tokenized length for the tokenizer')
 
     parser.add_argument("--weight-mode", default="hellinger",
                         choices=["hellinger", "log", "relative", "softmax_tau3"])
@@ -346,8 +406,8 @@ def main():
 
     parser.add_argument("--run-tsne", action="store_true")
     parser.add_argument("--run-umap", action="store_true")
-    parser.add_argument("--perplexity", type=int, default=30)
-    parser.add_argument("--n-neighbors", type=int, default=15)
+    parser.add_argument("--perplexity", type=int, default=30, help='Perplexity setting for tSNE')
+    parser.add_argument("--n-neighbors", type=int, default=15, help='Number of neighbours for UMAP')
     parser.add_argument("--metric", default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--seed", type=int, default=42)
 
@@ -369,7 +429,7 @@ def main():
         raise ValueError("Please provide at least one Excel file using --12s-files and/or --16s-files")
     
     print(f"[Loading] Processing Excel files by assay")
-    asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay)
+    asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay, min_length=args.min_asv_length, max_length=args.max_asv_length)
     print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
 
     for cols, name in [({"asv_id", "assay", "sequence"}, "asv_sequences"),
@@ -392,9 +452,30 @@ def main():
 
     print(f"[Assays] Detected in input: {assays_available}")
 
+    # Check resume status
+    force_recalc = args.force
+    resume_status = check_intermediate_files(args.outdir, assays_available) if not force_recalc else {}
+    
+    if not force_recalc:
+        resumable_asvs = [assay for assay in assays_available if resume_status.get('can_resume_asv_embeddings', {}).get(assay, False)]
+        resumable_sites = [assay for assay in assays_available if resume_status.get('can_resume_site_embeddings', {}).get(assay, False)]
+        
+        if resumable_asvs:
+            print(f"[Resume] Found existing ASV embeddings for: {resumable_asvs}")
+        if resumable_sites:
+            print(f"[Resume] Found existing site embeddings for: {resumable_sites}")
+
     # embed ASVs per assay
     asv_embeddings_paths = {}
     for assay in assays_available:
+        outp = args.outdir / f"asv_embeddings_{assay}.parquet"
+        asv_embeddings_paths[assay] = outp
+        
+        # Check if we can resume from existing ASV embeddings
+        if not force_recalc and resume_status.get('can_resume_asv_embeddings', {}).get(assay, False):
+            print(f"\n=== Resuming {assay} ASV embeddings from {outp} ===")
+            continue
+        
         print(f"\n=== Embedding {assay} ASVs ===")
         tok, mdl, device = load_model_and_tokenizer(assay, args.base_config, assay_models[assay], args.cache_dir)
         sub = asv_seqs[asv_seqs["assay"] == assay][["asv_id", "sequence"]].drop_duplicates()
@@ -404,13 +485,20 @@ def main():
                                  use_amp=args.use_amp,
                                  max_length=args.max_length)
         emb_df.insert(1, "assay", assay)
-        outp = args.outdir / f"asv_embeddings_{assay}.parquet"
         write_parquet(emb_df, outp)
-        asv_embeddings_paths[assay] = outp
 
     # pool to site embeddings per assay
     site_embeddings: Dict[str, pd.DataFrame] = {}
     for assay in assays_available:
+        outp = args.outdir / f"site_embeddings_{assay}.parquet"
+        
+        # Check if we can resume from existing site embeddings
+        if not force_recalc and resume_status.get('can_resume_site_embeddings', {}).get(assay, False):
+            print(f"\n=== Resuming {assay} site embeddings from {outp} ===")
+            site_df = pd.read_parquet(outp)
+            site_embeddings[assay] = site_df
+            continue
+        
         print(f"\n=== Site pooling for {assay} ===")
         asv_emb = pd.read_parquet(asv_embeddings_paths[assay])  # asv_id, assay, dim_*
         sub_reads = reads_long[reads_long["assay"] == assay]
@@ -421,30 +509,35 @@ def main():
             weight_mode=args.weight_mode,
             pooling=args.site_pooling
         )
-        outp = args.outdir / f"site_embeddings_{assay}.parquet"
         write_parquet(site_df, outp)
         site_embeddings[assay] = site_df
 
     # optional fusion/12S+16S concatenation
     fused_df = pd.DataFrame()
     if args.fuse == "concat" and {"12S", "16S"} <= set(site_embeddings.keys()):
-        print("\n=== Fusing 12S+16S by concatenation ===")
-        s12 = site_embeddings["12S"][["site_id"] + [c for c in site_embeddings["12S"].columns if c.startswith("dim_")]].set_index("site_id")
-        s16 = site_embeddings["16S"][["site_id"] + [c for c in site_embeddings["16S"].columns if c.startswith("dim_")]].set_index("site_id")
-        common = s12.index.intersection(s16.index)
-
-        fused_records = []
-        for sid in common:
-            v12 = s12.loc[sid].to_numpy(dtype=np.float32)
-            v16 = s16.loc[sid].to_numpy(dtype=np.float32)
-            vec = np.concatenate([v12, v16])
-            rec = {"site_id": sid}
-            for i, val in enumerate(vec):
-                rec[f"dim_{i}"] = float(val)
-            fused_records.append(rec)
-        fused_df = pd.DataFrame(fused_records)
         outp = args.outdir / "site_embeddings_fused.parquet"
-        write_parquet(fused_df, outp)
+        
+        # Check if we can resume from existing fused embeddings
+        if not force_recalc and resume_status.get('can_resume_fused', False):
+            print(f"\n=== Resuming fused embeddings from {outp} ===")
+            fused_df = pd.read_parquet(outp)
+        else:
+            print("\n=== Fusing 12S+16S by concatenation ===")
+            s12 = site_embeddings["12S"][["site_id"] + [c for c in site_embeddings["12S"].columns if c.startswith("dim_")]].set_index("site_id")
+            s16 = site_embeddings["16S"][["site_id"] + [c for c in site_embeddings["16S"].columns if c.startswith("dim_")]].set_index("site_id")
+            common = s12.index.intersection(s16.index)
+
+            fused_records = []
+            for sid in common:
+                v12 = s12.loc[sid].to_numpy(dtype=np.float32)
+                v16 = s16.loc[sid].to_numpy(dtype=np.float32)
+                vec = np.concatenate([v12, v16])
+                rec = {"site_id": sid}
+                for i, val in enumerate(vec):
+                    rec[f"dim_{i}"] = float(val)
+                fused_records.append(rec)
+            fused_df = pd.DataFrame(fused_records)
+            write_parquet(fused_df, outp)
     else:
         print("\n[Info] Fusion skipped (either --fuse none or not both assays present).")
 
