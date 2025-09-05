@@ -29,11 +29,6 @@ def seed_everything(seed=42):
     torch.cuda.manual_seed_all(seed)
 
 
-def read_table(path: Path) -> pd.DataFrame:
-    if path.suffix.lower() == ".csv":
-        return pd.read_csv(path)
-    return pd.read_parquet(path)
-
 
 def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
@@ -331,10 +326,6 @@ def main():
                         help="Path(s) to Excel file(s) containing 12S data")
     parser.add_argument("--16s-files", nargs='*', type=Path, default=[],
                         help="Path(s) to Excel file(s) containing 16S data")
-    parser.add_argument("--asv-seqs", type=Path,
-                        help="Optional: Path to asv_sequences.[csv|parquet] (columns: asv_id, assay, sequence)")
-    parser.add_argument("--reads", type=Path,
-                        help="Optional: Path to reads_long.[csv|parquet] (columns: site_id, assay, asv_id, reads)")
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory")
     parser.add_argument("--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)")
 
@@ -366,26 +357,19 @@ def main():
     seed_everything(args.seed)
     args.outdir.mkdir(parents=True, exist_ok=True)
 
-    # Check for new assay-specific arguments
-    if hasattr(args, '12s_files') and args.__dict__['12s_files'] or hasattr(args, '16s_files') and args.__dict__['16s_files']:
-        # New format: separate files by assay
-        files_by_assay = {}
-        if hasattr(args, '12s_files') and args.__dict__['12s_files']:
-            files_by_assay['12S'] = args.__dict__['12s_files']
-        if hasattr(args, '16s_files') and args.__dict__['16s_files']:
-            files_by_assay['16S'] = args.__dict__['16s_files']
-        
-        print(f"[Loading] Processing Excel files by assay")
-        asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay)
-        print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
-        
-    elif args.asv_seqs and args.reads:
-        print(f"[Loading] Using parquet/csv files")
-        asv_seqs = read_table(args.asv_seqs)
-        reads_long = read_table(args.reads)
-        
-    else:
-        raise ValueError("Please provide either --12s-files/--16s-files, or --asv-seqs and --reads")
+    # Process Excel files by assay
+    files_by_assay = {}
+    if args.__dict__['12s_files']:
+        files_by_assay['12S'] = args.__dict__['12s_files']
+    if args.__dict__['16s_files']:
+        files_by_assay['16S'] = args.__dict__['16s_files']
+    
+    if not files_by_assay:
+        raise ValueError("Please provide at least one Excel file using --12s-files and/or --16s-files")
+    
+    print(f"[Loading] Processing Excel files by assay")
+    asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay)
+    print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
 
     for cols, name in [({"asv_id", "assay", "sequence"}, "asv_sequences"),
                        ({"site_id", "assay", "asv_id", "reads"}, "reads_long")]:
@@ -427,7 +411,7 @@ def main():
     site_embeddings: Dict[str, pd.DataFrame] = {}
     for assay in assays_available:
         print(f"\n=== Site pooling for {assay} ===")
-        asv_emb = read_table(asv_embeddings_paths[assay])  # asv_id, assay, dim_*
+        asv_emb = pd.read_parquet(asv_embeddings_paths[assay])  # asv_id, assay, dim_*
         sub_reads = reads_long[reads_long["assay"] == assay]
         site_df = compute_site_embeddings_from_dfs(
             reads_long=sub_reads,
