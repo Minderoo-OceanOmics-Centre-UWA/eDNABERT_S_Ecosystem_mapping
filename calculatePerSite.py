@@ -98,16 +98,6 @@ def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[
     return combined_asv_seqs, combined_reads_long
 
 
-def process_excel_to_dataframes_legacy(excel_paths) -> tuple[pd.DataFrame, pd.DataFrame]:
-    """Legacy function for backwards compatibility with old argument format."""
-    # Convert to new format (assume 12S for backwards compatibility)
-    if isinstance(excel_paths, (str, Path)):
-        excel_paths = [Path(excel_paths)]
-    else:
-        excel_paths = [Path(p) for p in excel_paths]
-    files_by_assay = {'12S': excel_paths}
-    return process_excel_to_dataframes(files_by_assay)
-
 
 def write_parquet(df: pd.DataFrame, path: Path):
     df.to_parquet(path, index=False)
@@ -341,10 +331,6 @@ def main():
                         help="Path(s) to Excel file(s) containing 12S data")
     parser.add_argument("--16s-files", nargs='*', type=Path, default=[],
                         help="Path(s) to Excel file(s) containing 16S data")
-    parser.add_argument("--excel-files", nargs='+', type=Path,
-                        help="Deprecated: Use --12s-files and --16s-files instead")
-    parser.add_argument("--excel-file", type=Path,
-                        help="Deprecated: Use --12s-files and --16s-files instead")
     parser.add_argument("--asv-seqs", type=Path,
                         help="Optional: Path to asv_sequences.[csv|parquet] (columns: asv_id, assay, sequence)")
     parser.add_argument("--reads", type=Path,
@@ -393,25 +379,13 @@ def main():
         asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay)
         print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
         
-    elif args.excel_files:
-        # Legacy format: assume 12S
-        print(f"[Loading] Processing {len(args.excel_files)} Excel files (legacy format, assuming 12S)")
-        asv_seqs, reads_long = process_excel_to_dataframes_legacy(args.excel_files)
-        print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
-        
-    elif args.excel_file:
-        # Legacy format: assume 12S
-        print(f"[Loading] Processing single Excel file: {args.excel_file} (legacy format, assuming 12S)")
-        asv_seqs, reads_long = process_excel_to_dataframes_legacy(args.excel_file)
-        print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
-        
     elif args.asv_seqs and args.reads:
         print(f"[Loading] Using parquet/csv files")
         asv_seqs = read_table(args.asv_seqs)
         reads_long = read_table(args.reads)
         
     else:
-        raise ValueError("Please provide either --12s-files/--16s-files, or --asv-seqs and --reads, or legacy --excel-files/--excel-file")
+        raise ValueError("Please provide either --12s-files/--16s-files, or --asv-seqs and --reads")
 
     for cols, name in [({"asv_id", "assay", "sequence"}, "asv_sequences"),
                        ({"site_id", "assay", "asv_id", "reads"}, "reads_long")]:
