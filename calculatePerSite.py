@@ -74,12 +74,13 @@ def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]]) -> tuple[
     if not all_asv_seqs:
         raise ValueError("No Excel files were processed. Please provide --12s-files and/or --16s-files")
     
-    # Concatenate all dataframes
     combined_asv_seqs = pd.concat(all_asv_seqs, ignore_index=True)
     combined_reads_long = pd.concat(all_reads_long, ignore_index=True)
     
     # Remove duplicates (same ASV across files should be identical)
-    combined_asv_seqs = combined_asv_seqs.drop_duplicates(subset=['asv_id', 'assay'])
+    #combined_asv_seqs = combined_asv_seqs.drop_duplicates(subset=['asv_id', 'assay'])
+    # TODO: come up with a better way to ignoring duplicate ASVs while also 
+    # adding their read counts
     
     # Drop source_file column for final output (keep internal structure consistent)
     combined_asv_seqs = combined_asv_seqs[['asv_id', 'assay', 'sequence']]
