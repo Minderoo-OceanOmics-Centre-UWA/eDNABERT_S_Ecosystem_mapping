@@ -30,37 +30,36 @@ eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)
 optional arguments:
   -h, --help            show this help message and exit
   --12s-files [12S_FILES ...]
-                        Path(s) to Excel file(s) containing 12S data
+                        Path(s) to Excel file(s) containing 12S data (default: [])
   --16s-files [16S_FILES ...]
-                        Path(s) to Excel file(s) containing 16S data
-  --outdir OUTDIR       Output directory
+                        Path(s) to Excel file(s) containing 16S data (default: [])
+  --outdir OUTDIR       Output directory (default: None)
   --cache-dir CACHE_DIR
-                        HuggingFace cache dir (optional)
+                        HuggingFace cache dir (optional) (default: None)
   --min-asv-length MIN_ASV_LENGTH
-                        Minimum ASV sequence length (optional)
+                        Minimum ASV sequence length (optional) (default: None)
   --max-asv-length MAX_ASV_LENGTH
-                        Maximum ASV sequence length (optional)
-  --force               Force recalculation of all steps, ignoring existing intermediate files
+                        Maximum ASV sequence length (optional) (default: None)
+  --force               Force recalculation of all steps, ignoring existing intermediate files (default: False)
   --model-12s MODEL_12S
   --model-16s MODEL_16S
   --base-config BASE_CONFIG
   --pooling-token {mean,cls}
   --batch-size BATCH_SIZE
-  --use-amp             Enable mixed precision on CUDA
+  --use-amp             Enable mixed precision on CUDA (default: False)
   --max-length MAX_LENGTH
-                        Longest tokenized length for the tokenizer
+                        Longest tokenized length for the tokenizer (default: 512)
   --weight-mode {hellinger,log,relative,softmax_tau3}
   --site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3}
   --run-tsne
   --run-umap
   --perplexity PERPLEXITY
-                        Perplexity setting for tSNE
+                        Perplexity setting for tSNE (default: 5)
   --n-neighbors N_NEIGHBORS
-                        Number of neighbours for UMAP
+                        Number of neighbours for UMAP (default: 15)
   --metric {cosine,euclidean}
   --seed SEED
-  --fuse {none,concat}  How to fuse 12S+16S site vectors (concat or none)
-
+  --fuse {none,concat}  How to fuse 12S+16S site vectors (concat or none) (default: concat)
 </pre>
 
 # Results
