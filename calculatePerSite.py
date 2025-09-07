@@ -373,7 +373,8 @@ def run_umap(site_df: pd.DataFrame,
 
 
 def main():
-    parser = argparse.ArgumentParser(description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)")
+    parser = argparse.ArgumentParser(description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)",
+                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--12s-files", nargs='*', type=Path, default=[],
                         help="Path(s) to Excel file(s) containing 12S data")
     parser.add_argument("--16s-files", nargs='*', type=Path, default=[],
