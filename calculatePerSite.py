@@ -339,7 +339,7 @@ def compute_site_embeddings_from_dfs(reads_long: pd.DataFrame,
 def run_tsne(site_df: pd.DataFrame,
              label_cols: List[str],
              metric="cosine",
-             perplexity=30,
+             perplexity=5,
              random_state=42) -> pd.DataFrame:
     dim_cols = [c for c in site_df.columns if c.startswith("dim_")]
     X = site_df[dim_cols].to_numpy(dtype=np.float32)
@@ -406,7 +406,7 @@ def main():
 
     parser.add_argument("--run-tsne", action="store_true")
     parser.add_argument("--run-umap", action="store_true")
-    parser.add_argument("--perplexity", type=int, default=30, help='Perplexity setting for tSNE')
+    parser.add_argument("--perplexity", type=int, default=5, help='Perplexity setting for tSNE')
     parser.add_argument("--n-neighbors", type=int, default=15, help='Number of neighbours for UMAP')
     parser.add_argument("--metric", default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--seed", type=int, default=42)
