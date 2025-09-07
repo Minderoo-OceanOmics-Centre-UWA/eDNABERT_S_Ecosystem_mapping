@@ -6,11 +6,11 @@ This script takes a FAIRe-formatted Excel sheet with ASV results of 12S (MiFishU
 
 It then stores the per-site embeddings in a paraquet file, and optionally runs tSNE or UMAP on those embeddings to get per-site representations.
 
-This is what the tSNE clustering of those per-site embeddings looks like along a latitude gradient, split up by sampling device:
+This is what the tSNE clustering of those per-site embeddings looks like along a latitude gradient:
 
 <img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/62fa01e0-a8f8-4b61-b62f-e41ee22265fc" />
 
-Each dot is one site, colored by their latitude/longitude.
+Each dot is one site, colored by their latitude, shaped by sample collection device.
 
 # Usage
 
