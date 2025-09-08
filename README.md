@@ -8,7 +8,8 @@ It then stores the per-site embeddings in a paraquet file, and optionally runs t
 
 This is what the tSNE clustering of those per-site embeddings looks like along a latitude gradient:
 
-<img width="1024" height="768" alt="image" src="https://github.com/user-attachments/assets/62fa01e0-a8f8-4b61-b62f-e41ee22265fc" />
+<img width="682" height="512" alt="image" src="https://github.com/user-attachments/assets/62fa01e0-a8f8-4b61-b62f-e41ee22265fc" />
+<img width="682" height="512" alt="image" src="https://github.com/user-attachments/assets/2a5a1418-1379-401c-9fad-31330b9a7236" />
 
 Each dot is one site, colored by their latitude, shaped by sample collection device.
 
