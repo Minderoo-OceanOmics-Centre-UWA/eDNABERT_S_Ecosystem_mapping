@@ -309,6 +309,11 @@ def site_embed_l2_weighted_mean(embeds, weights, eps=1e-12, renorm=True):
     return site
 
 
+def site_embed_simple_mean(embeds):
+    """Simple arithmetic mean of ASV embeddings with no normalisation."""
+    return embeds.mean(axis=0)
+
+
 def softplus(x):
     return np.log1p(np.exp(-np.abs(x))) + np.maximum(x, 0)
 
@@ -353,22 +358,28 @@ def compute_site_embeddings_from_dfs(
     ):
         embeds = g[dim_cols].to_numpy(dtype=np.float32)
         counts = g["reads"].to_numpy(dtype=np.float64)
-        w = weights_from_counts(counts, mode=weight_mode)
-
-        if pooling == "weighted_mean":
-            vec = site_embed_weighted_mean(embeds, w)
-        elif pooling == "l2_weighted_mean":
-            vec = site_embed_l2_weighted_mean(embeds, w)
-        elif pooling.startswith("gem"):
-            p = 2.0
-            if "_p" in pooling:
-                try:
-                    p = float(pooling.split("_p")[-1])
-                except Exception:
-                    p = 2.0
-            vec = site_embed_gem(embeds, w, p=p)
+        
+        if pooling == "simple_mean":
+            # No normalisation - just simple arithmetic mean
+            vec = site_embed_simple_mean(embeds)
         else:
-            raise ValueError(f"Unknown pooling: {pooling}")
+            # All other pooling methods use weights
+            w = weights_from_counts(counts, mode=weight_mode)
+            
+            if pooling == "weighted_mean":
+                vec = site_embed_weighted_mean(embeds, w)
+            elif pooling == "l2_weighted_mean":
+                vec = site_embed_l2_weighted_mean(embeds, w)
+            elif pooling.startswith("gem"):
+                p = 2.0
+                if "_p" in pooling:
+                    try:
+                        p = float(pooling.split("_p")[-1])
+                    except Exception:
+                        p = 2.0
+                vec = site_embed_gem(embeds, w, p=p)
+            else:
+                raise ValueError(f"Unknown pooling: {pooling}")
 
         rec = {"site_id": keys[0]}
         if per_assay:
@@ -492,7 +503,8 @@ def main():
     parser.add_argument(
         "--site-pooling",
         default="l2_weighted_mean",
-        choices=["l2_weighted_mean", "weighted_mean", "gem_p2", "gem_p3"],
+        choices=["l2_weighted_mean", "weighted_mean", "gem_p2", "gem_p3", "simple_mean"],
+        help="Method for pooling ASV embeddings to site embeddings. 'simple_mean' performs no normalisation.",
     )
 
     parser.add_argument("--run-tsne", action="store_true")
