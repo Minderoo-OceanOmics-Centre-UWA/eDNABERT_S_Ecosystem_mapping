@@ -9,9 +9,10 @@ from typing import Dict, List
 import numpy as np
 import pandas as pd
 import openpyxl
+
 # get rid of boring user warning
 # UserWarning: Data Validation extension is not supported and will be removed
-openpyxl.reader.excel.warnings.simplefilter(action='ignore')
+openpyxl.reader.excel.warnings.simplefilter(action="ignore")
 
 from tqdm import tqdm
 
@@ -19,8 +20,10 @@ import torch
 from transformers import AutoTokenizer, AutoModel, AutoConfig
 
 from sklearn.manifold import TSNE
+
 try:
     import umap
+
     HAS_UMAP = True
 except Exception:
     HAS_UMAP = False
@@ -28,14 +31,18 @@ except Exception:
 
 def seed_everything(seed=42):
     import random
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
 
 
-
-def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]], min_length: int = None, max_length: int = None) -> tuple[pd.DataFrame, pd.DataFrame]:
+def process_excel_to_dataframes(
+    files_by_assay: Dict[str, List[Path]],
+    min_length: int = None,
+    max_length: int = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     """
     Process Excel files by assay to create ASV sequences and reads DataFrames.
     Args:
@@ -46,78 +53,91 @@ def process_excel_to_dataframes(files_by_assay: Dict[str, List[Path]], min_lengt
     """
     all_asv_seqs = []
     all_reads_long = []
-    
+
     for assay, excel_paths in files_by_assay.items():
         if not excel_paths:
             continue
-            
+
         print(f"[Processing] {len(excel_paths)} {assay} files")
-        
+
         for excel_path in excel_paths:
             print(f"[Processing] {assay} file: {excel_path}")
-            
+
             # Process ASV sequences from taxaRaw sheet
-            asvs = pd.read_excel(excel_path, sheet_name='taxaRaw', skiprows=2)
-            asv_seqs = asvs.loc[:, ['seq_id', 'dna_sequence']]
+            asvs = pd.read_excel(excel_path, sheet_name="taxaRaw", skiprows=2)
+            asv_seqs = asvs.loc[:, ["seq_id", "dna_sequence"]]
             asv_seqs = asv_seqs.drop_duplicates()
-            asv_seqs = asv_seqs.rename(columns={'seq_id': 'asv_id', 'dna_sequence': 'sequence'})
-            
+            asv_seqs = asv_seqs.rename(
+                columns={"seq_id": "asv_id", "dna_sequence": "sequence"}
+            )
+
             # Apply length filtering if specified
             initial_count = len(asv_seqs)
             if min_length is not None:
-                asv_seqs = asv_seqs[asv_seqs['sequence'].str.len() >= min_length]
+                asv_seqs = asv_seqs[asv_seqs["sequence"].str.len() >= min_length]
             if max_length is not None:
-                asv_seqs = asv_seqs[asv_seqs['sequence'].str.len() <= max_length]
-            
+                asv_seqs = asv_seqs[asv_seqs["sequence"].str.len() <= max_length]
+
             filtered_count = len(asv_seqs)
             if initial_count != filtered_count:
-                print(f"[Filtered] {assay}: {initial_count} -> {filtered_count} ASVs (length filter: {min_length or 'no min'} - {max_length or 'no max'})")
-            
-            asv_seqs['assay'] = assay
-            asv_seqs['source_file'] = excel_path.name  # Track source file
-            asv_seqs = asv_seqs[['asv_id', 'assay', 'sequence', 'source_file']]
-            
+                print(
+                    f"[Filtered] {assay}: {initial_count} -> {filtered_count} ASVs (length filter: {min_length or 'no min'} - {max_length or 'no max'})"
+                )
+
+            asv_seqs["assay"] = assay
+            asv_seqs["source_file"] = excel_path.name  # Track source file
+            asv_seqs = asv_seqs[["asv_id", "assay", "sequence", "source_file"]]
+
             # Process reads from otuRaw sheet
-            reads = pd.read_excel(excel_path, sheet_name='otuRaw')
-            reads = reads.drop('Unnamed: 0', axis=1)
-            reads = reads.rename(columns={'ASV': 'asv_id'})
-            reads_long = reads.drop('ASV_sequence', axis=1).melt(id_vars=['asv_id'], var_name='site_id', value_name='reads')
-            
+            reads = pd.read_excel(excel_path, sheet_name="otuRaw")
+            reads = reads.drop("Unnamed: 0", axis=1)
+            reads = reads.rename(columns={"ASV": "asv_id"})
+            reads_long = reads.drop("ASV_sequence", axis=1).melt(
+                id_vars=["asv_id"], var_name="site_id", value_name="reads"
+            )
+
             # Filter reads to only include ASVs that passed length filtering
-            valid_asvs = set(asv_seqs['asv_id'])
-            reads_long = reads_long[reads_long['asv_id'].isin(valid_asvs)]
-            
-            reads_long['assay'] = assay
-            reads_long['source_file'] = excel_path.name  # Track source file
-            reads_long = reads_long[['site_id', 'assay', 'asv_id', 'reads', 'source_file']]
-            
+            valid_asvs = set(asv_seqs["asv_id"])
+            reads_long = reads_long[reads_long["asv_id"].isin(valid_asvs)]
+
+            reads_long["assay"] = assay
+            reads_long["source_file"] = excel_path.name  # Track source file
+            reads_long = reads_long[
+                ["site_id", "assay", "asv_id", "reads", "source_file"]
+            ]
+
             all_asv_seqs.append(asv_seqs)
             all_reads_long.append(reads_long)
-            
-            print(f"[Loaded] {len(asv_seqs)} {assay} ASVs, {len(reads_long)} site-ASV records from {excel_path.name}")
-    
+
+            print(
+                f"[Loaded] {len(asv_seqs)} {assay} ASVs, {len(reads_long)} site-ASV records from {excel_path.name}"
+            )
+
     if not all_asv_seqs:
-        raise ValueError("No Excel files were processed. Please provide --12s-files and/or --16s-files")
-    
+        raise ValueError(
+            "No Excel files were processed. Please provide --12s-files and/or --16s-files"
+        )
+
     combined_asv_seqs = pd.concat(all_asv_seqs, ignore_index=True)
     combined_reads_long = pd.concat(all_reads_long, ignore_index=True)
-    
-    # Remove duplicates (same ASV across files should be identical)
-    #combined_asv_seqs = combined_asv_seqs.drop_duplicates(subset=['asv_id', 'assay'])
-    # TODO: come up with a better way to ignoring duplicate ASVs while also 
-    # adding their read counts
-    
-    # Drop source_file column for final output (keep internal structure consistent)
-    combined_asv_seqs = combined_asv_seqs[['asv_id', 'assay', 'sequence']]
-    combined_reads_long = combined_reads_long[['site_id', 'assay', 'asv_id', 'reads']]
-    
-    # Count by assay
-    assay_counts = combined_asv_seqs['assay'].value_counts()
-    print(f"[Combined] Total: {len(combined_asv_seqs)} unique ASVs ({', '.join([f'{count} {assay}' for assay, count in assay_counts.items()])})")
-    print(f"[Combined] Total: {len(combined_reads_long)} site-ASV records")
-    
-    return combined_asv_seqs, combined_reads_long
 
+    # Remove duplicates (same ASV across files should be identical)
+    # combined_asv_seqs = combined_asv_seqs.drop_duplicates(subset=['asv_id', 'assay'])
+    # TODO: come up with a better way to ignoring duplicate ASVs while also
+    # adding their read counts
+
+    # Drop source_file column for final output (keep internal structure consistent)
+    combined_asv_seqs = combined_asv_seqs[["asv_id", "assay", "sequence"]]
+    combined_reads_long = combined_reads_long[["site_id", "assay", "asv_id", "reads"]]
+
+    # Count by assay
+    assay_counts = combined_asv_seqs["assay"].value_counts()
+    print(
+        f"[Combined] Total: {len(combined_asv_seqs)} unique ASVs ({', '.join([f'{count} {assay}' for assay, count in assay_counts.items()])})"
+    )
+    print(f"[Combined] Total: {len(combined_reads_long)} site-ASV records")
+
+    return combined_asv_seqs, combined_reads_long
 
 
 def write_parquet(df: pd.DataFrame, path: Path):
@@ -125,29 +145,31 @@ def write_parquet(df: pd.DataFrame, path: Path):
     print(f"[Saved] {path}")
 
 
-def check_intermediate_files(outdir: Path, assays_available: List[str]) -> Dict[str, bool]:
+def check_intermediate_files(
+    outdir: Path, assays_available: List[str]
+) -> Dict[str, bool]:
     """
     Check which intermediate files already exist.
     Returns: Dictionary indicating which steps can be resumed
     """
     status = {
-        'can_resume_asv_embeddings': {},
-        'can_resume_site_embeddings': {},
-        'can_resume_fused': False
+        "can_resume_asv_embeddings": {},
+        "can_resume_site_embeddings": {},
+        "can_resume_fused": False,
     }
-    
+
     # Check ASV embedding files
     for assay in assays_available:
         asv_emb_path = outdir / f"asv_embeddings_{assay}.parquet"
         site_emb_path = outdir / f"site_embeddings_{assay}.parquet"
-        
-        status['can_resume_asv_embeddings'][assay] = asv_emb_path.exists()
-        status['can_resume_site_embeddings'][assay] = site_emb_path.exists()
-    
+
+        status["can_resume_asv_embeddings"][assay] = asv_emb_path.exists()
+        status["can_resume_site_embeddings"][assay] = site_emb_path.exists()
+
     # Check fused file
     fused_path = outdir / "site_embeddings_fused.parquet"
-    status['can_resume_fused'] = fused_path.exists()
-    
+    status["can_resume_fused"] = fused_path.exists()
+
     return status
 
 
@@ -157,11 +179,18 @@ def clean_seq(seq: str) -> str:
     return "".join(ch if ch in allowed else "N" for ch in seq)
 
 
-
-def load_model_and_tokenizer(assay: str, base_config: str, model_name: str, cache_dir: str = None):
-    config = AutoConfig.from_pretrained(base_config, trust_remote_code=True, cache_dir=cache_dir)
-    tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, cache_dir=cache_dir)
-    model = AutoModel.from_pretrained(model_name, trust_remote_code=True, config=config, cache_dir=cache_dir)
+def load_model_and_tokenizer(
+    assay: str, base_config: str, model_name: str, cache_dir: str = None
+):
+    config = AutoConfig.from_pretrained(
+        base_config, trust_remote_code=True, cache_dir=cache_dir
+    )
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name, trust_remote_code=True, cache_dir=cache_dir
+    )
+    model = AutoModel.from_pretrained(
+        model_name, trust_remote_code=True, config=config, cache_dir=cache_dir
+    )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device).eval()
     print(f"[{assay}] Loaded model on device: {device}")
@@ -169,14 +198,16 @@ def load_model_and_tokenizer(assay: str, base_config: str, model_name: str, cach
 
 
 @torch.inference_mode()
-def embed_sequences(df: pd.DataFrame,
-                    tokenizer,
-                    model,
-                    device,
-                    pooling: str = "mean",
-                    batch_size: int = 128,
-                    use_amp: bool = True,
-                    max_length: int = 512) -> pd.DataFrame:
+def embed_sequences(
+    df: pd.DataFrame,
+    tokenizer,
+    model,
+    device,
+    pooling: str = "mean",
+    batch_size: int = 128,
+    use_amp: bool = True,
+    max_length: int = 512,
+) -> pd.DataFrame:
     """
     df: columns ["asv_id", "sequence"]
     Returns DataFrame: ["asv_id", "dim_0", ..., "dim_{D-1}"]
@@ -187,8 +218,14 @@ def embed_sequences(df: pd.DataFrame,
     all_vecs = []
     steps = math.ceil(len(seqs) / batch_size)
     for i in tqdm(range(0, len(seqs), batch_size), total=steps, desc="Embedding"):
-        batch = seqs[i:i+batch_size]
-        enc = tokenizer(batch, return_tensors="pt", padding=True, truncation=True, max_length=max_length)
+        batch = seqs[i : i + batch_size]
+        enc = tokenizer(
+            batch,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=max_length,
+        )
         enc = {k: v.to(device) for k, v in enc.items()}
 
         if use_amp and device.type == "cuda":
@@ -226,7 +263,6 @@ def embed_sequences(df: pd.DataFrame,
     return emb_df
 
 
-
 def weights_from_counts(counts, mode="hellinger", tau=3.0, eps=1e-12):
     # TODO: I think we need only hellinger...
     c = np.asarray(counts, dtype=float)
@@ -235,10 +271,12 @@ def weights_from_counts(counts, mode="hellinger", tau=3.0, eps=1e-12):
     if mode == "relative":
         w = c / c.sum()
     elif mode == "log":
-        w = np.log1p(c); w /= (w.sum() + eps)
+        w = np.log1p(c)
+        w /= w.sum() + eps
     elif mode == "hellinger":
         a = c / (c.sum() + eps)
-        w = np.sqrt(a); w /= (w.sum() + eps)
+        w = np.sqrt(a)
+        w /= w.sum() + eps
     elif mode.startswith("softmax"):
         # e.g., softmax_tau3
         if "_tau" in mode:
@@ -277,15 +315,17 @@ def softplus(x):
 
 def site_embed_gem(embeds, weights, p=2.0):
     vpos = softplus(embeds)
-    pooled = (weights[:, None] * (vpos ** p)).sum(axis=0) / (weights.sum() + 1e-12)
+    pooled = (weights[:, None] * (vpos**p)).sum(axis=0) / (weights.sum() + 1e-12)
     return np.power(pooled, 1.0 / p)
 
 
-def compute_site_embeddings_from_dfs(reads_long: pd.DataFrame,
-                                     asv_emb_df: pd.DataFrame,
-                                     per_assay: bool = True,
-                                     weight_mode: str = "hellinger",
-                                     pooling: str = "l2_weighted_mean") -> pd.DataFrame:
+def compute_site_embeddings_from_dfs(
+    reads_long: pd.DataFrame,
+    asv_emb_df: pd.DataFrame,
+    per_assay: bool = True,
+    weight_mode: str = "hellinger",
+    pooling: str = "l2_weighted_mean",
+) -> pd.DataFrame:
     """
     reads_long: columns [site_id, assay, asv_id, reads]
     asv_emb_df: columns [asv_id, assay, dim_*]
@@ -296,16 +336,21 @@ def compute_site_embeddings_from_dfs(reads_long: pd.DataFrame,
     if not dim_cols:
         raise ValueError("asv_emb_df contains no embedding columns (dim_*)")
 
-    df = reads_long.merge(asv_emb_df[["asv_id", "assay"] + dim_cols],
-                          on=["asv_id", "assay"], how="inner")
+    df = reads_long.merge(
+        asv_emb_df[["asv_id", "assay"] + dim_cols], on=["asv_id", "assay"], how="inner"
+    )
     df = df[df["reads"] > 0].copy()
     if df.empty:
-        raise ValueError("No overlapping ASVs with reads > 0 and embeddings for this assay.")
+        raise ValueError(
+            "No overlapping ASVs with reads > 0 and embeddings for this assay."
+        )
 
     group_cols = ["site_id", "assay"] if per_assay else ["site_id"]
     records = []
     unique_groups = df[group_cols].drop_duplicates().shape[0]
-    for keys, g in tqdm(df.groupby(group_cols, sort=False), total=unique_groups, desc="Pooling sites"):
+    for keys, g in tqdm(
+        df.groupby(group_cols, sort=False), total=unique_groups, desc="Pooling sites"
+    ):
         embeds = g[dim_cols].to_numpy(dtype=np.float32)
         counts = g["reads"].to_numpy(dtype=np.float64)
         w = weights_from_counts(counts, mode=weight_mode)
@@ -335,17 +380,18 @@ def compute_site_embeddings_from_dfs(reads_long: pd.DataFrame,
     return pd.DataFrame(records)
 
 
-
-def run_tsne(site_df: pd.DataFrame,
-             label_cols: List[str],
-             metric="cosine",
-             perplexity=5,
-             random_state=42) -> pd.DataFrame:
+def run_tsne(
+    site_df: pd.DataFrame,
+    label_cols: List[str],
+    metric="cosine",
+    perplexity=5,
+    random_state=42,
+) -> pd.DataFrame:
     dim_cols = [c for c in site_df.columns if c.startswith("dim_")]
     X = site_df[dim_cols].to_numpy(dtype=np.float32)
     if X.shape[0] < 3:
         raise ValueError("Need at least 3 sites for t-SNE.")
-    p = min(perplexity, max(5, (X.shape[0]-1)//3))
+    p = min(perplexity, max(5, (X.shape[0] - 1) // 3))
     tsne = TSNE(n_components=2, metric=metric, perplexity=p, random_state=random_state)
     Y = tsne.fit_transform(X)
     out = site_df[label_cols].copy()
@@ -354,16 +400,23 @@ def run_tsne(site_df: pd.DataFrame,
     return out
 
 
-def run_umap(site_df: pd.DataFrame,
-             label_cols: List[str],
-             metric="cosine",
-             n_neighbors=15,
-             random_state=42) -> pd.DataFrame:
+def run_umap(
+    site_df: pd.DataFrame,
+    label_cols: List[str],
+    metric="cosine",
+    n_neighbors=15,
+    random_state=42,
+) -> pd.DataFrame:
     if not HAS_UMAP:
         raise RuntimeError("umap-learn is not installed. pip install umap-learn")
     dim_cols = [c for c in site_df.columns if c.startswith("dim_")]
     X = site_df[dim_cols].to_numpy(dtype=np.float32)
-    reducer = umap.UMAP(n_components=2, n_neighbors=n_neighbors, metric=metric, random_state=random_state)
+    reducer = umap.UMAP(
+        n_components=2,
+        n_neighbors=n_neighbors,
+        metric=metric,
+        random_state=random_state,
+    )
     Y = reducer.fit_transform(X)
     out = site_df[label_cols].copy()
     out["umap_x"] = Y[:, 0]
@@ -371,25 +424,49 @@ def run_umap(site_df: pd.DataFrame,
     return out
 
 
-
 def main():
-    parser = argparse.ArgumentParser(description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)",
-                formatter_class=argparse.ArgumentDefaultsHelpFormatter)
-    parser.add_argument("--12s-files", nargs='*', type=Path, default=[],
-                        help="Path(s) to Excel file(s) containing 12S data")
-    parser.add_argument("--16s-files", nargs='*', type=Path, default=[],
-                        help="Path(s) to Excel file(s) containing 16S data")
+    parser = argparse.ArgumentParser(
+        description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument(
+        "--12s-files",
+        nargs="*",
+        type=Path,
+        default=[],
+        help="Path(s) to Excel file(s) containing 12S data",
+    )
+    parser.add_argument(
+        "--16s-files",
+        nargs="*",
+        type=Path,
+        default=[],
+        help="Path(s) to Excel file(s) containing 16S data",
+    )
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory")
-    parser.add_argument("--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)")
-    
-    parser.add_argument("--min-asv-length", type=int, default=None,
-                        help="Minimum ASV sequence length (optional)")
-    parser.add_argument("--max-asv-length", type=int, default=None,
-                        help="Maximum ASV sequence length (optional)")
-    
+    parser.add_argument(
+        "--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)"
+    )
+
+    parser.add_argument(
+        "--min-asv-length",
+        type=int,
+        default=None,
+        help="Minimum ASV sequence length (optional)",
+    )
+    parser.add_argument(
+        "--max-asv-length",
+        type=int,
+        default=None,
+        help="Maximum ASV sequence length (optional)",
+    )
+
     # Resume functionality
-    parser.add_argument("--force", action="store_true",
-                        help="Force recalculation of all steps, ignoring existing intermediate files")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force recalculation of all steps, ignoring existing intermediate files",
+    )
 
     parser.add_argument("--model-12s", default="OceanOmics/eDNABERT-S_12S")
     parser.add_argument("--model-16s", default="OceanOmics/eDNABERT-S_16S")
@@ -397,23 +474,44 @@ def main():
 
     parser.add_argument("--pooling-token", default="mean", choices=["mean", "cls"])
     parser.add_argument("--batch-size", type=int, default=128)
-    parser.add_argument("--use-amp", action="store_true", help="Enable mixed precision on CUDA")
-    parser.add_argument("--max-length", type=int, default=512, help='Longest tokenized length for the tokenizer')
+    parser.add_argument(
+        "--use-amp", action="store_true", help="Enable mixed precision on CUDA"
+    )
+    parser.add_argument(
+        "--max-length",
+        type=int,
+        default=512,
+        help="Longest tokenized length for the tokenizer",
+    )
 
-    parser.add_argument("--weight-mode", default="hellinger",
-                        choices=["hellinger", "log", "relative", "softmax_tau3"])
-    parser.add_argument("--site-pooling", default="l2_weighted_mean",
-                        choices=["l2_weighted_mean", "weighted_mean", "gem_p2", "gem_p3"])
+    parser.add_argument(
+        "--weight-mode",
+        default="hellinger",
+        choices=["hellinger", "log", "relative", "softmax_tau3"],
+    )
+    parser.add_argument(
+        "--site-pooling",
+        default="l2_weighted_mean",
+        choices=["l2_weighted_mean", "weighted_mean", "gem_p2", "gem_p3"],
+    )
 
     parser.add_argument("--run-tsne", action="store_true")
     parser.add_argument("--run-umap", action="store_true")
-    parser.add_argument("--perplexity", type=int, default=5, help='Perplexity setting for tSNE')
-    parser.add_argument("--n-neighbors", type=int, default=15, help='Number of neighbours for UMAP')
+    parser.add_argument(
+        "--perplexity", type=int, default=5, help="Perplexity setting for tSNE"
+    )
+    parser.add_argument(
+        "--n-neighbors", type=int, default=15, help="Number of neighbours for UMAP"
+    )
     parser.add_argument("--metric", default="cosine", choices=["cosine", "euclidean"])
     parser.add_argument("--seed", type=int, default=42)
 
-    parser.add_argument("--fuse", default="concat", choices=["none", "concat"],
-                        help="How to fuse 12S+16S site vectors (concat or none)")
+    parser.add_argument(
+        "--fuse",
+        default="concat",
+        choices=["none", "concat"],
+        help="How to fuse 12S+16S site vectors (concat or none)",
+    )
     args = parser.parse_args()
 
     seed_everything(args.seed)
@@ -421,21 +519,33 @@ def main():
 
     # Process Excel files by assay
     files_by_assay = {}
-    if args.__dict__['12s_files']:
-        files_by_assay['12S'] = args.__dict__['12s_files']
-    if args.__dict__['16s_files']:
-        files_by_assay['16S'] = args.__dict__['16s_files']
-    
-    if not files_by_assay:
-        raise ValueError("Please provide at least one Excel file using --12s-files and/or --16s-files")
-    
-    print(f"[Loading] Processing Excel files by assay")
-    asv_seqs, reads_long = process_excel_to_dataframes(files_by_assay, min_length=args.min_asv_length, max_length=args.max_asv_length)
-    print(f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows")
+    if args.__dict__["12s_files"]:
+        files_by_assay["12S"] = args.__dict__["12s_files"]
+    if args.__dict__["16s_files"]:
+        files_by_assay["16S"] = args.__dict__["16s_files"]
 
-    for cols, name in [({"asv_id", "assay", "sequence"}, "asv_sequences"),
-                       ({"site_id", "assay", "asv_id", "reads"}, "reads_long")]:
-        have = set(asv_seqs.columns) if name == "asv_sequences" else set(reads_long.columns)
+    if not files_by_assay:
+        raise ValueError(
+            "Please provide at least one Excel file using --12s-files and/or --16s-files"
+        )
+
+    print(f"[Loading] Processing Excel files by assay")
+    asv_seqs, reads_long = process_excel_to_dataframes(
+        files_by_assay, min_length=args.min_asv_length, max_length=args.max_asv_length
+    )
+    print(
+        f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows"
+    )
+
+    for cols, name in [
+        ({"asv_id", "assay", "sequence"}, "asv_sequences"),
+        ({"site_id", "assay", "asv_id", "reads"}, "reads_long"),
+    ]:
+        have = (
+            set(asv_seqs.columns)
+            if name == "asv_sequences"
+            else set(reads_long.columns)
+        )
         missing = cols - have
         if missing:
             raise ValueError(f"{name} is missing columns: {missing}")
@@ -455,12 +565,24 @@ def main():
 
     # Check resume status
     force_recalc = args.force
-    resume_status = check_intermediate_files(args.outdir, assays_available) if not force_recalc else {}
-    
+    resume_status = (
+        check_intermediate_files(args.outdir, assays_available)
+        if not force_recalc
+        else {}
+    )
+
     if not force_recalc:
-        resumable_asvs = [assay for assay in assays_available if resume_status.get('can_resume_asv_embeddings', {}).get(assay, False)]
-        resumable_sites = [assay for assay in assays_available if resume_status.get('can_resume_site_embeddings', {}).get(assay, False)]
-        
+        resumable_asvs = [
+            assay
+            for assay in assays_available
+            if resume_status.get("can_resume_asv_embeddings", {}).get(assay, False)
+        ]
+        resumable_sites = [
+            assay
+            for assay in assays_available
+            if resume_status.get("can_resume_site_embeddings", {}).get(assay, False)
+        ]
+
         if resumable_asvs:
             print(f"[Resume] Found existing ASV embeddings for: {resumable_asvs}")
         if resumable_sites:
@@ -471,20 +593,31 @@ def main():
     for assay in assays_available:
         outp = args.outdir / f"asv_embeddings_{assay}.parquet"
         asv_embeddings_paths[assay] = outp
-        
+
         # Check if we can resume from existing ASV embeddings
-        if not force_recalc and resume_status.get('can_resume_asv_embeddings', {}).get(assay, False):
+        if not force_recalc and resume_status.get("can_resume_asv_embeddings", {}).get(
+            assay, False
+        ):
             print(f"\n=== Resuming {assay} ASV embeddings from {outp} ===")
             continue
-        
+
         print(f"\n=== Embedding {assay} ASVs ===")
-        tok, mdl, device = load_model_and_tokenizer(assay, args.base_config, assay_models[assay], args.cache_dir)
-        sub = asv_seqs[asv_seqs["assay"] == assay][["asv_id", "sequence"]].drop_duplicates()
-        emb_df = embed_sequences(sub, tok, mdl, device,
-                                 pooling=args.pooling_token,
-                                 batch_size=args.batch_size,
-                                 use_amp=args.use_amp,
-                                 max_length=args.max_length)
+        tok, mdl, device = load_model_and_tokenizer(
+            assay, args.base_config, assay_models[assay], args.cache_dir
+        )
+        sub = asv_seqs[asv_seqs["assay"] == assay][
+            ["asv_id", "sequence"]
+        ].drop_duplicates()
+        emb_df = embed_sequences(
+            sub,
+            tok,
+            mdl,
+            device,
+            pooling=args.pooling_token,
+            batch_size=args.batch_size,
+            use_amp=args.use_amp,
+            max_length=args.max_length,
+        )
         emb_df.insert(1, "assay", assay)
         write_parquet(emb_df, outp)
 
@@ -492,14 +625,16 @@ def main():
     site_embeddings: Dict[str, pd.DataFrame] = {}
     for assay in assays_available:
         outp = args.outdir / f"site_embeddings_{assay}.parquet"
-        
+
         # Check if we can resume from existing site embeddings
-        if not force_recalc and resume_status.get('can_resume_site_embeddings', {}).get(assay, False):
+        if not force_recalc and resume_status.get("can_resume_site_embeddings", {}).get(
+            assay, False
+        ):
             print(f"\n=== Resuming {assay} site embeddings from {outp} ===")
             site_df = pd.read_parquet(outp)
             site_embeddings[assay] = site_df
             continue
-        
+
         print(f"\n=== Site pooling for {assay} ===")
         asv_emb = pd.read_parquet(asv_embeddings_paths[assay])  # asv_id, assay, dim_*
         sub_reads = reads_long[reads_long["assay"] == assay]
@@ -508,7 +643,7 @@ def main():
             asv_emb_df=asv_emb,
             per_assay=True,
             weight_mode=args.weight_mode,
-            pooling=args.site_pooling
+            pooling=args.site_pooling,
         )
         write_parquet(site_df, outp)
         site_embeddings[assay] = site_df
@@ -517,15 +652,21 @@ def main():
     fused_df = pd.DataFrame()
     if args.fuse == "concat" and {"12S", "16S"} <= set(site_embeddings.keys()):
         outp = args.outdir / "site_embeddings_fused.parquet"
-        
+
         # Check if we can resume from existing fused embeddings
-        if not force_recalc and resume_status.get('can_resume_fused', False):
+        if not force_recalc and resume_status.get("can_resume_fused", False):
             print(f"\n=== Resuming fused embeddings from {outp} ===")
             fused_df = pd.read_parquet(outp)
         else:
             print("\n=== Fusing 12S+16S by concatenation ===")
-            s12 = site_embeddings["12S"][["site_id"] + [c for c in site_embeddings["12S"].columns if c.startswith("dim_")]].set_index("site_id")
-            s16 = site_embeddings["16S"][["site_id"] + [c for c in site_embeddings["16S"].columns if c.startswith("dim_")]].set_index("site_id")
+            s12 = site_embeddings["12S"][
+                ["site_id"]
+                + [c for c in site_embeddings["12S"].columns if c.startswith("dim_")]
+            ].set_index("site_id")
+            s16 = site_embeddings["16S"][
+                ["site_id"]
+                + [c for c in site_embeddings["16S"].columns if c.startswith("dim_")]
+            ].set_index("site_id")
             common = s12.index.intersection(s16.index)
 
             fused_records = []
@@ -540,7 +681,9 @@ def main():
             fused_df = pd.DataFrame(fused_records)
             write_parquet(fused_df, outp)
     else:
-        print("\n[Info] Fusion skipped (either --fuse none or not both assays present).")
+        print(
+            "\n[Info] Fusion skipped (either --fuse none or not both assays present)."
+        )
 
     # optional t-SNE / UMAP on site vectors
     def _run_ordinations(tag: str, df: pd.DataFrame):
@@ -552,8 +695,16 @@ def main():
             label_cols.append("assay")
 
         if args.run_tsne:
-            print(f"[{tag}] Running t-SNE (metric={args.metric}, perplexity={args.perplexity})")
-            tsne_df = run_tsne(df, label_cols=label_cols, metric=args.metric, perplexity=args.perplexity, random_state=args.seed)
+            print(
+                f"[{tag}] Running t-SNE (metric={args.metric}, perplexity={args.perplexity})"
+            )
+            tsne_df = run_tsne(
+                df,
+                label_cols=label_cols,
+                metric=args.metric,
+                perplexity=args.perplexity,
+                random_state=args.seed,
+            )
             path = args.outdir / f"tsne_{tag}.csv"
             tsne_df.to_csv(path, index=False)
             print(f"[Saved] {path}")
@@ -561,8 +712,16 @@ def main():
             if not HAS_UMAP:
                 print("[Warn] umap-learn is not installed; skipping UMAP.")
             else:
-                print(f"[{tag}] Running UMAP (metric={args.metric}, n_neighbors={args.n_neighbors})")
-                umap_df = run_umap(df, label_cols=label_cols, metric=args.metric, n_neighbors=args.n_neighbors, random_state=args.seed)
+                print(
+                    f"[{tag}] Running UMAP (metric={args.metric}, n_neighbors={args.n_neighbors})"
+                )
+                umap_df = run_umap(
+                    df,
+                    label_cols=label_cols,
+                    metric=args.metric,
+                    n_neighbors=args.n_neighbors,
+                    random_state=args.seed,
+                )
                 path = args.outdir / f"umap_{tag}.csv"
                 umap_df.to_csv(path, index=False)
                 print(f"[Saved] {path}")
