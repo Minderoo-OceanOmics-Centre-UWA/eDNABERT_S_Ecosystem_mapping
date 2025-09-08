@@ -22,7 +22,7 @@ Each dot is one site, colored by their latitude, shaped by sample collection dev
 usage: calculatePerSite.py [-h] [--12s-files [12S_FILES ...]] [--16s-files [16S_FILES ...]] --outdir OUTDIR [--cache-dir CACHE_DIR]
                            [--min-asv-length MIN_ASV_LENGTH] [--max-asv-length MAX_ASV_LENGTH] [--force] [--model-12s MODEL_12S] [--model-16s MODEL_16S]
                            [--base-config BASE_CONFIG] [--pooling-token {mean,cls}] [--batch-size BATCH_SIZE] [--use-amp] [--max-length MAX_LENGTH]
-                           [--weight-mode {hellinger,log,relative,softmax_tau3}] [--site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3}]
+                           [--weight-mode {hellinger,log,relative,softmax_tau3}] [--site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3,simple_mean}]
                            [--run-tsne] [--run-umap] [--perplexity PERPLEXITY] [--n-neighbors N_NEIGHBORS] [--metric {cosine,euclidean}] [--seed SEED]
                            [--fuse {none,concat}]
 
@@ -51,7 +51,8 @@ optional arguments:
   --max-length MAX_LENGTH
                         Longest tokenized length for the tokenizer (default: 512)
   --weight-mode {hellinger,log,relative,softmax_tau3}
-  --site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3}
+  --site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3,simple_mean}
+                        Method for pooling ASV embeddings to site embeddings. 'simple_mean' performs no normalisation. (default: l2_weighted_mean)
   --run-tsne
   --run-umap
   --perplexity PERPLEXITY
