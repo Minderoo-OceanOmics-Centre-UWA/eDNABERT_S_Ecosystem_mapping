@@ -34,3 +34,27 @@ Per-coordinate performance:
 [Saved] Prediction plot: regress/taxonomic_baseline_predictions.png
 
 [Done] Taxonomic baseline results saved to: regress
+
+
+After adding samp_collect_device in the model:
+[Best params] {'estimator__learning_rate': 0.2, 'estimator__max_depth': 9, 'estimator__n_estimators': 300, 'estimator__subsample': 0.8}
+[Training] Taxonomic+Device XGBoost (optimized) completed.
+[CV] Best cross-validation R² (GroupKFold): 0.2770
+[Info] Model does not support feature importance analysis
+
+======================================================================
+TAXONOMIC + COLLECTION DEVICE BASELINE RESULTS (Taxonomic+Device XGBoost (optimized))
+======================================================================
+Cross-validation R² (mean): 0.2770 (±0.0000)
+Test R² (overall):          0.6578
+Test MSE (overall):         2.9192
+Test MAE (overall):         1.3144
+
+Per-coordinate performance:
+  Latitude  - R²: 0.6780, MSE: 2.2301
+  Longitude - R²: 0.6377, MSE: 3.6084
+
+[Saved] Detailed results: regress/taxonomic_device_baseline_results.csv
+[Saved] Summary metrics: regress/taxonomic_device_baseline_summary.json
+[Saved] Prediction plot: regress/taxonomic_device_baseline_predictions.png
+
