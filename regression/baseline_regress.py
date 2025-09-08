@@ -1,7 +1,8 @@
 import argparse
 import warnings
 from pathlib import Path
-from typing import Tuple, Dict, Any
+from typing import Tuple, Dict, Any, List
+import re
 
 import numpy as np
 import pandas as pd
@@ -20,7 +21,6 @@ import matplotlib.pyplot as plt
 
 try:
     import xgboost as xgb
-
     HAS_XGBOOST = True
 except ImportError:
     HAS_XGBOOST = False
@@ -28,89 +28,155 @@ except ImportError:
 warnings.filterwarnings("ignore")
 
 
-def load_site_embeddings(path: Path) -> pd.DataFrame:
-    """Load site embeddings from parquet or CSV file."""
-    if path.suffix.lower() == ".csv":
-        return pd.read_csv(path)
-    else:
-        return pd.read_parquet(path)
+def load_asv_data(path: Path) -> pd.DataFrame:
+    """Load ASV taxonomic and abundance data from TSV file."""
+    return pd.read_csv(path, sep='\t')
 
 
-def load_coordinates(path: Path) -> pd.DataFrame:
-    """Load coordinate data from CSV or Excel file."""
-    if path.suffix.lower() == ".csv":
-        df = pd.read_csv(path)
-    else:
-        df = pd.read_excel(path)
+def load_sample_metadata(path: Path) -> pd.DataFrame:
+    """Load sample metadata with coordinates."""
+    df = pd.read_csv(path, sep='\t')
+    
+    # Keep only samples with coordinates (exclude controls)
+    df = df[df['decimalLongitude'].notna() & df['decimalLatitude'].notna()].copy()
+    
+    # Create site_id column to match with ASV data (sample names)
+    df['site_id'] = df['samp_name']
+    
+    return df[['site_id', 'decimalLatitude', 'decimalLongitude']].rename(columns={
+        'decimalLatitude': 'latitude',
+        'decimalLongitude': 'longitude'
+    })
 
-    # Ensure required columns exist
-    required_cols = {"site_id", "latitude", "longitude"}
-    if not required_cols.issubset(df.columns):
-        raise ValueError(f"Coordinate file must contain columns: {required_cols}")
 
-    return df[["site_id", "latitude", "longitude"]]
+def get_best_taxonomic_level(row: pd.Series) -> str:
+    """
+    Get the most specific non-dropped taxonomic level for an ASV.
+    Searches from species back to phylum.
+    """
+    taxonomic_levels = ['species', 'genus', 'family', 'order', 'class', 'phylum']
+    
+    for level in taxonomic_levels:
+        value = row[level]
+        if pd.notna(value) and value != 'dropped' and value != 'Unknown':
+            return f"{level}:{value}"
+    
+    return "unknown:unknown"
+
+
+def prepare_taxonomic_features(asv_df: pd.DataFrame, sample_cols: List[str]) -> pd.DataFrame:
+    """
+    Convert ASV taxonomic data into site-level taxonomic composition features.
+    
+    Args:
+        asv_df: ASV dataframe with taxonomic info and abundance columns
+        sample_cols: List of sample column names (starting with V10_)
+        
+    Returns:
+        DataFrame with site_id as index and taxonomic features as columns
+    """
+    print(f"[Data] Processing {len(asv_df)} ASVs across {len(sample_cols)} samples")
+    
+    # Get best taxonomic assignment for each ASV
+    asv_df['best_taxonomy'] = asv_df.apply(get_best_taxonomic_level, axis=1)
+    
+    print(f"[Data] Found {asv_df['best_taxonomy'].nunique()} unique taxonomic groups")
+    
+    # Create site-level taxonomic composition
+    site_features = {}
+    
+    for sample_col in sample_cols:
+        if sample_col not in asv_df.columns:
+            continue
+            
+        # Sum abundances by taxonomic group for this sample
+        sample_composition = asv_df.groupby('best_taxonomy')[sample_col].sum()
+        
+        # Convert to relative abundance (optional - can help with standardization)
+        total_abundance = sample_composition.sum()
+        if total_abundance > 0:
+            sample_composition = sample_composition / total_abundance
+        
+        site_features[sample_col] = sample_composition
+    
+    # Convert to dataframe with samples as rows, taxonomic groups as columns
+    features_df = pd.DataFrame(site_features).T.fillna(0)
+    features_df.index.name = 'site_id'
+    
+    print(f"[Data] Created feature matrix: {features_df.shape[0]} samples × {features_df.shape[1]} taxonomic features")
+    
+    # Remove taxonomic groups that are completely absent (all zeros)
+    features_df = features_df.loc[:, (features_df != 0).any(axis=0)]
+    
+    print(f"[Data] After removing absent taxa: {features_df.shape[0]} samples × {features_df.shape[1]} features")
+    
+    return features_df.reset_index()
 
 
 def prepare_data(
-    embeddings_df: pd.DataFrame, coords_df: pd.DataFrame
+    asv_df: pd.DataFrame, metadata_df: pd.DataFrame
 ) -> Tuple[np.ndarray, np.ndarray, pd.DataFrame]:
     """
-    Merge embeddings with coordinates and prepare X, y matrices.
-
+    Prepare taxonomic features and coordinates for regression.
+    
     Returns:
-        X: Feature matrix (embeddings)
-        y: Target matrix (lat, lon)
-        merged_df: Merged dataframe for reference (includes base_site)
+        X: Feature matrix (taxonomic composition)
+        y: Target matrix (lat, lon)  
+        merged_df: Merged dataframe for reference
     """
-    # Merge on site_id
-    merged = embeddings_df.merge(coords_df, on="site_id", how="inner")
-
+    # Get sample columns (those starting with V10_ and not controls)
+    sample_cols = [col for col in asv_df.columns if col.startswith('V10_') 
+                   and not col.endswith(('_WC_T1', '_DI_T1', '_BC_1', '_NTC_1'))]
+    
+    print(f"[Data] Found {len(sample_cols)} sample columns (excluding controls)")
+    
+    # Create taxonomic features
+    features_df = prepare_taxonomic_features(asv_df, sample_cols)
+    
+    # Merge with coordinates
+    merged = features_df.merge(metadata_df, on='site_id', how='inner')
+    
     if merged.empty:
-        raise ValueError("No matching site_ids between embeddings and coordinates")
-
-    # Derive base_site by stripping replicate suffix like _1.._5
-    merged["base_site"] = (
-        merged["site_id"].astype(str).str.replace(r"_\d+$", "", regex=True)
-    )
-
-    print(
-        f"[Data] Merged {len(merged)} rows (replicates) with both embeddings and coordinates"
-    )
-    n_sites = merged["base_site"].nunique()
+        raise ValueError("No matching site_ids between taxonomic features and coordinates")
+    
+    # Derive base_site by stripping replicate suffix
+    merged['base_site'] = merged['site_id'].astype(str).str.replace(r'_T1$', '', regex=True)
+    merged['base_site'] = merged['base_site'].str.replace(r'_\d+$', '', regex=True)
+    
+    print(f"[Data] Merged {len(merged)} samples with both taxonomic data and coordinates")
+    n_sites = merged['base_site'].nunique()
     print(f"[Data] Unique base sites: {n_sites}")
-
-    # Extract embedding columns (those starting with 'dim_')
-    dim_cols = [col for col in merged.columns if col.startswith("dim_")]
-    if not dim_cols:
-        raise ValueError(
-            "No embedding columns found (expected columns starting with 'dim_')"
-        )
-
-    X = merged[dim_cols].values
-    y = merged[["latitude", "longitude"]].values
-
-    print(
-        f"[Data] Features: {X.shape[1]} dimensions, Targets: {len(merged)} replicate rows across {n_sites} base sites"
-    )
-
+    
+    # Extract feature columns (taxonomic composition)
+    feature_cols = [col for col in merged.columns 
+                   if col not in ['site_id', 'latitude', 'longitude', 'base_site']]
+    
+    if not feature_cols:
+        raise ValueError("No taxonomic features found after merging")
+    
+    X = merged[feature_cols].values
+    y = merged[['latitude', 'longitude']].values
+    
+    print(f"[Data] Features: {X.shape[1]} taxonomic groups, Targets: {len(merged)} samples across {n_sites} base sites")
+    
     return X, y, merged
 
 
 def evaluate_model(model, X_test: np.ndarray, y_test: np.ndarray) -> Dict[str, Any]:
     """Evaluate model performance and return metrics."""
     y_pred = model.predict(X_test)
-
+    
     # Overall metrics
     mse = mean_squared_error(y_test, y_pred)
     mae = mean_absolute_error(y_test, y_pred)
     r2 = r2_score(y_test, y_pred)
-
+    
     # Per-target metrics
     lat_mse = mean_squared_error(y_test[:, 0], y_pred[:, 0])
     lon_mse = mean_squared_error(y_test[:, 1], y_pred[:, 1])
     lat_r2 = r2_score(y_test[:, 0], y_pred[:, 0])
     lon_r2 = r2_score(y_test[:, 1], y_pred[:, 1])
-
+    
     return {
         "mse_overall": mse,
         "mae_overall": mae,
@@ -126,7 +192,7 @@ def evaluate_model(model, X_test: np.ndarray, y_test: np.ndarray) -> Dict[str, A
 def plot_results(y_test: np.ndarray, y_pred: np.ndarray, output_dir: Path):
     """Create scatter plots of predicted vs actual coordinates."""
     fig, axes = plt.subplots(1, 2, figsize=(12, 5))
-
+    
     # Latitude plot
     axes[0].scatter(y_test[:, 0], y_pred[:, 0], alpha=0.6)
     axes[0].plot(
@@ -137,9 +203,9 @@ def plot_results(y_test: np.ndarray, y_pred: np.ndarray, output_dir: Path):
     )
     axes[0].set_xlabel("Actual Latitude")
     axes[0].set_ylabel("Predicted Latitude")
-    axes[0].set_title("Latitude Prediction")
+    axes[0].set_title("Latitude Prediction (Taxonomic Baseline)")
     axes[0].grid(True, alpha=0.3)
-
+    
     # Longitude plot
     axes[1].scatter(y_test[:, 1], y_pred[:, 1], alpha=0.6)
     axes[1].plot(
@@ -150,11 +216,11 @@ def plot_results(y_test: np.ndarray, y_pred: np.ndarray, output_dir: Path):
     )
     axes[1].set_xlabel("Actual Longitude")
     axes[1].set_ylabel("Predicted Longitude")
-    axes[1].set_title("Longitude Prediction")
+    axes[1].set_title("Longitude Prediction (Taxonomic Baseline)")
     axes[1].grid(True, alpha=0.3)
-
+    
     plt.tight_layout()
-    plot_path = output_dir / "coordinate_predictions.png"
+    plot_path = output_dir / "taxonomic_baseline_predictions.png"
     plt.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close()
     print(f"[Saved] Prediction plot: {plot_path}")
@@ -162,19 +228,19 @@ def plot_results(y_test: np.ndarray, y_pred: np.ndarray, output_dir: Path):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Predict lat/lon from site embeddings with grouped CV by base_site"
+        description="Predict lat/lon from taxonomic composition (baseline for ecosystem embedding comparison)"
     )
     parser.add_argument(
-        "--site-embeddings",
+        "--asv-data",
         required=True,
         type=Path,
-        help="Path to site embeddings parquet/CSV file",
+        help="Path to ASV taxonomic data TSV file (asv_lca_with_fishbase_output.tsv)",
     )
     parser.add_argument(
-        "--coordinates",
+        "--sample-metadata", 
         required=True,
         type=Path,
-        help="Path to coordinates CSV/Excel file (site_id, latitude, longitude)",
+        help="Path to sample metadata TSV file (samplemetadata.tsv)",
     )
     parser.add_argument(
         "--output", required=True, type=Path, help="Output directory for results"
@@ -209,53 +275,53 @@ def main():
         help="Cross-validation folds (default: 5, grouped by base_site)",
     )
     parser.add_argument("--seed", type=int, default=42, help="Random seed")
-
+    
     args = parser.parse_args()
     args.output.mkdir(parents=True, exist_ok=True)
-
+    
     # Set random seed
     np.random.seed(args.seed)
-
-    print(f"[Loading] Site embeddings: {args.site_embeddings}")
-    embeddings_df = load_site_embeddings(args.site_embeddings)
-
-    print(f"[Loading] Coordinates: {args.coordinates}")
-    coords_df = load_coordinates(args.coordinates)
-
+    
+    print(f"[Loading] ASV taxonomic data: {args.asv_data}")
+    asv_df = load_asv_data(args.asv_data)
+    
+    print(f"[Loading] Sample metadata: {args.sample_metadata}")
+    metadata_df = load_sample_metadata(args.sample_metadata)
+    
     # Prepare data
-    X, y, merged_df = prepare_data(embeddings_df, coords_df)
-
+    X, y, merged_df = prepare_data(asv_df, metadata_df)
+    
     # Build groups from base_site
     groups_all = merged_df["base_site"].values
     indices = np.arange(len(X))
-
+    
     # Grouped train/test split (keeps replicates from same base_site together)
     gss = GroupShuffleSplit(
         n_splits=1, test_size=args.test_size, random_state=args.seed
     )
     train_idx, test_idx = next(gss.split(X, y, groups=groups_all))
-
+    
     X_train, X_test = X[train_idx], X[test_idx]
     y_train, y_test = y[train_idx], y[test_idx]
     groups_train = groups_all[train_idx]
     groups_test = groups_all[test_idx]
     idx_train, idx_test = train_idx, test_idx
-
+    
     # Scale features
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
-
+    
     print(
-        f"[Split] Training replicates: {len(X_train)} across {pd.unique(groups_train).size} base sites"
+        f"[Split] Training samples: {len(X_train)} across {pd.unique(groups_train).size} base sites"
     )
     print(
-        f"[Split] Testing replicates:  {len(X_test)} across {pd.unique(groups_test).size} base sites"
+        f"[Split] Testing samples:  {len(X_test)} across {pd.unique(groups_test).size} base sites"
     )
-
+    
     # Choose and train model with optional hyperparameter optimization
     gkf = GroupKFold(n_splits=args.cv_folds)
-
+    
     if args.model == "ridge":
         base_model = Ridge()
         if args.optimize_hyperparams:
@@ -265,20 +331,18 @@ def main():
             model = GridSearchCV(
                 wrapped,
                 param_grid,
-                cv=gkf,  # grouped CV
+                cv=gkf,
                 scoring="r2",
                 n_jobs=args.n_jobs,
             )
             model.fit(X_train_scaled, y_train, groups=groups_train)
             print(f"[Best params] {model.best_params_}")
-            model_name = (
-                f"Ridge Regression (alpha={model.best_estimator_.estimator.alpha})"
-            )
+            model_name = f"Taxonomic Ridge Regression (alpha={model.best_estimator_.estimator.alpha})"
         else:
             model = MultiOutputRegressor(Ridge(alpha=1.0))
             model.fit(X_train_scaled, y_train)
-            model_name = "Ridge Regression"
-
+            model_name = "Taxonomic Ridge Regression"
+    
     elif args.model == "rf":
         if args.optimize_hyperparams:
             print("[Optimizing] Random Forest hyperparameters with GroupKFold...")
@@ -291,18 +355,18 @@ def main():
             model = GridSearchCV(
                 base_model,
                 param_grid,
-                cv=gkf,  # grouped CV
+                cv=gkf,
                 scoring="r2",
                 n_jobs=args.n_jobs,
             )
             model.fit(X_train_scaled, y_train, groups=groups_train)
             print(f"[Best params] {model.best_params_}")
-            model_name = "Random Forest (optimized)"
+            model_name = "Taxonomic Random Forest (optimized)"
         else:
             model = RandomForestRegressor(n_estimators=100, random_state=args.seed)
             model.fit(X_train_scaled, y_train)
-            model_name = "Random Forest"
-
+            model_name = "Taxonomic Random Forest"
+    
     elif args.model == "xgb":
         if not HAS_XGBOOST:
             raise ImportError(
@@ -320,23 +384,23 @@ def main():
             model = GridSearchCV(
                 wrapped,
                 param_grid,
-                cv=gkf,  # grouped CV
+                cv=gkf,
                 scoring="r2",
                 n_jobs=args.n_jobs,
             )
             model.fit(X_train_scaled, y_train, groups=groups_train)
             print(f"[Best params] {model.best_params_}")
-            model_name = "XGBoost (optimized)"
+            model_name = "Taxonomic XGBoost (optimized)"
         else:
             model = MultiOutputRegressor(xgb.XGBRegressor(random_state=args.seed))
             model.fit(X_train_scaled, y_train)
-            model_name = "XGBoost"
-
+            model_name = "Taxonomic XGBoost"
+    
     else:
         raise ValueError(f"Unknown model type: {args.model}")
-
+    
     print(f"[Training] {model_name} completed.")
-
+    
     # Cross-validation (skip if already done during hyperparameter optimization)
     if args.optimize_hyperparams:
         # Use best CV score from GridSearch (already grouped)
@@ -348,18 +412,18 @@ def main():
             model,
             X_train_scaled,
             y_train,
-            cv=gkf,  # grouped CV
+            cv=gkf,
             scoring="r2",
-            groups=groups_train,  # critical to respect grouping
+            groups=groups_train,
         )
-
+    
     # Evaluate on test set
     metrics = evaluate_model(model, X_test_scaled, y_test)
-
+    
     # Print results
-    print("\n" + "=" * 50)
-    print(f"REGRESSION RESULTS ({model_name})")
-    print("=" * 50)
+    print("\n" + "=" * 60)
+    print(f"TAXONOMIC BASELINE RESULTS ({model_name})")
+    print("=" * 60)
     print(
         f"Cross-validation R² (mean): {cv_scores.mean():.4f} (±{cv_scores.std() * 2:.4f})"
     )
@@ -370,7 +434,7 @@ def main():
     print("Per-coordinate performance:")
     print(f"  Latitude  - R²: {metrics['lat_r2']:.4f}, MSE: {metrics['lat_mse']:.4f}")
     print(f"  Longitude - R²: {metrics['lon_r2']:.4f}, MSE: {metrics['lon_mse']:.4f}")
-
+    
     # Save detailed results
     test_site_ids = merged_df.iloc[idx_test]["site_id"].values
     test_base_sites = merged_df.iloc[idx_test]["base_site"].values
@@ -386,14 +450,15 @@ def main():
             "lon_error": np.abs(y_test[:, 1] - metrics["predictions"][:, 1]),
         }
     )
-
-    results_path = args.output / "regression_results.csv"
+    
+    results_path = args.output / "taxonomic_baseline_results.csv"
     results_df.to_csv(results_path, index=False)
     print(f"\n[Saved] Detailed results: {results_path}")
-
+    
     # Save summary metrics
     summary = {
         "model": model_name,
+        "baseline_type": "taxonomic_composition",
         "grouped_splitting": True,
         "cv_strategy": "GroupKFold",
         "cv_folds": args.cv_folds,
@@ -405,28 +470,28 @@ def main():
         "test_r2_lat": float(metrics["lat_r2"]),
         "test_r2_lon": float(metrics["lon_r2"]),
         "n_features": X.shape[1],
-        "n_train_replicates": len(X_train),
-        "n_test_replicates": len(X_test),
+        "n_train_samples": len(X_train),
+        "n_test_samples": len(X_test),
         "n_train_base_sites": int(pd.unique(groups_train).size),
         "n_test_base_sites": int(pd.unique(groups_test).size),
         "n_total_base_sites": int(pd.unique(groups_all).size),
         "hyperparameter_optimization": bool(args.optimize_hyperparams),
     }
-
+    
     if args.optimize_hyperparams:
         summary["best_params"] = model.best_params_
-
-    summary_path = args.output / "regression_summary.json"
+    
+    summary_path = args.output / "taxonomic_baseline_summary.json"
     import json
-
+    
     with open(summary_path, "w") as f:
         json.dump(summary, f, indent=2)
     print(f"[Saved] Summary metrics: {summary_path}")
-
+    
     # Create plots
     plot_results(y_test, metrics["predictions"], args.output)
-
-    print(f"\n[Done] All results saved to: {args.output}")
+    
+    print(f"\n[Done] Taxonomic baseline results saved to: {args.output}")
 
 
 if __name__ == "__main__":

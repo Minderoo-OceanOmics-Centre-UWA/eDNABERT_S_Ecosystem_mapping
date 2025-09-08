@@ -1,0 +1,36 @@
+[Loading] ASV taxonomic data: asv_lca_with_fishbase_output.tsv
+[Loading] Sample metadata: samplemetadata.tsv
+[Data] Found 206 sample columns (excluding controls)
+[Data] Processing 1613 ASVs across 206 samples
+[Data] Found 268 unique taxonomic groups
+[Data] Created feature matrix: 206 samples × 268 taxonomic features
+[Data] After removing absent taxa: 206 samples × 268 features
+[Data] Merged 142 samples with both taxonomic data and coordinates
+[Data] Unique base sites: 30
+[Data] Features: 268 taxonomic groups, Targets: 142 samples across 30 base sites
+[Split] Training samples: 116 across 24 base sites
+[Split] Testing samples:  26 across 6 base sites
+[Optimizing] XGBoost hyperparameters with GroupKFold...
+
+
+[Best params] {'estimator__learning_rate': 0.2, 'estimator__max_depth': 9, 'estimator__n_estimators': 300, 'estimator__subsample': 0.8}
+[Training] Taxonomic XGBoost (optimized) completed.
+[CV] Best cross-validation R² (GroupKFold): 0.2662
+
+============================================================
+TAXONOMIC BASELINE RESULTS (Taxonomic XGBoost (optimized))
+============================================================
+Cross-validation R² (mean): 0.2662 (±0.0000)
+Test R² (overall):          0.6483
+Test MSE (overall):         3.0188
+Test MAE (overall):         1.3370
+
+Per-coordinate performance:
+  Latitude  - R²: 0.6811, MSE: 2.2088
+  Longitude - R²: 0.6155, MSE: 3.8288
+
+[Saved] Detailed results: regress/taxonomic_baseline_results.csv
+[Saved] Summary metrics: regress/taxonomic_baseline_summary.json
+[Saved] Prediction plot: regress/taxonomic_baseline_predictions.png
+
+[Done] Taxonomic baseline results saved to: regress
