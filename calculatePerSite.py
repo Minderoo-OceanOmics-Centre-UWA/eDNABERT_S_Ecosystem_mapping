@@ -409,6 +409,13 @@ def weights_from_counts(counts, mode="hellinger", tau=3.0, eps=1e-12):
         a = c / (c.sum() + eps)
         w = np.sqrt(a)
         w /= w.sum() + eps
+    elif mode == "clr":
+        c_adj = c + eps  
+        log_c = np.log(c_adj)
+        clr_vals = log_c - np.mean(log_c)
+        # Convert back to weights (could also use softmax, should be same??)
+        w = np.exp(clr_vals)
+        w /= w.sum() + eps
     elif mode.startswith("softmax"):
         # e.g., softmax_tau3
         if "_tau" in mode:
@@ -655,7 +662,7 @@ def main():
     parser.add_argument(
         "--weight-mode",
         default="hellinger",
-        choices=["hellinger", "log", "relative", "softmax_tau3"],
+        choices=["hellinger", "log", "relative", "softmax_tau3", "clr"],
     )
     parser.add_argument(
         "--site-pooling",
