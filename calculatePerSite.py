@@ -38,6 +38,138 @@ def seed_everything(seed=42):
     torch.cuda.manual_seed_all(seed)
 
 
+def parse_fasta(fasta_path: Path) -> Dict[str, str]:
+    """
+    Parse a FASTA file and return a dictionary of {seq_id: sequence}.
+    """
+    sequences = {}
+    current_id = None
+    current_seq = []
+    
+    with open(fasta_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('>'):
+                # Save previous sequence if exists
+                if current_id is not None:
+                    sequences[current_id] = ''.join(current_seq)
+                # Start new sequence
+                current_id = line[1:]  # Remove '>' character
+                current_seq = []
+            elif current_id is not None:
+                current_seq.append(line)
+    
+    # Don't forget the last sequence
+    if current_id is not None:
+        sequences[current_id] = ''.join(current_seq)
+    
+    return sequences
+
+
+def process_fasta_tsv_to_dataframes(
+    fasta_12s: Path = None,
+    fasta_16s: Path = None,
+    counts_12s: Path = None,
+    counts_16s: Path = None,
+    min_length: int = None,
+    max_length: int = None,
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Process FASTA and TSV files to create ASV sequences and reads DataFrames.
+    Args:
+        fasta_12s: Path to 12S FASTA file
+        fasta_16s: Path to 16S FASTA file  
+        counts_12s: Path to 12S counts TSV file
+        counts_16s: Path to 16S counts TSV file
+        min_length: Minimum ASV sequence length (optional)
+        max_length: Maximum ASV sequence length (optional)
+    Returns: (asv_seqs_df, reads_long_df)
+    """
+    all_asv_seqs = []
+    all_reads_long = []
+    
+    # Process each assay
+    for assay, fasta_path, counts_path in [
+        ("12S", fasta_12s, counts_12s),
+        ("16S", fasta_16s, counts_16s)
+    ]:
+        if fasta_path is None or counts_path is None:
+            continue
+            
+        print(f"[Processing] {assay} FASTA: {fasta_path}")
+        print(f"[Processing] {assay} counts: {counts_path}")
+        
+        # Parse FASTA file
+        sequences = parse_fasta(fasta_path)
+        print(f"[Loaded] {len(sequences)} sequences from {fasta_path}")
+        
+        # Create ASV sequences DataFrame
+        asv_seqs = pd.DataFrame([
+            {"asv_id": seq_id, "sequence": seq} 
+            for seq_id, seq in sequences.items()
+        ])
+        
+        # Apply length filtering if specified
+        initial_count = len(asv_seqs)
+        if min_length is not None:
+            asv_seqs = asv_seqs[asv_seqs["sequence"].str.len() >= min_length]
+        if max_length is not None:
+            asv_seqs = asv_seqs[asv_seqs["sequence"].str.len() <= max_length]
+            
+        filtered_count = len(asv_seqs)
+        if initial_count != filtered_count:
+            print(
+                f"[Filtered] {assay}: {initial_count} -> {filtered_count} ASVs (length filter: {min_length or 'no min'} - {max_length or 'no max'})"
+            )
+        
+        asv_seqs["assay"] = assay
+        asv_seqs = asv_seqs[["asv_id", "assay", "sequence"]]
+        
+        # Load counts TSV file
+        # Expected format: first column is ASV IDs, remaining columns are site counts
+        counts_df = pd.read_csv(counts_path, sep='\t', index_col=0)
+        print(f"[Loaded] Counts table: {counts_df.shape[0]} ASVs x {counts_df.shape[1]} sites")
+        
+        # Convert to long format
+        counts_df.index.name = 'asv_id'
+        reads_long = counts_df.reset_index().melt(
+            id_vars=['asv_id'], 
+            var_name='site_id', 
+            value_name='reads'
+        )
+        
+        # Filter reads to only include ASVs that passed length filtering
+        valid_asvs = set(asv_seqs["asv_id"])
+        reads_long = reads_long[reads_long["asv_id"].isin(valid_asvs)]
+        
+        reads_long["assay"] = assay
+        reads_long = reads_long[["site_id", "assay", "asv_id", "reads"]]
+        
+        all_asv_seqs.append(asv_seqs)
+        all_reads_long.append(reads_long)
+        
+        print(
+            f"[Loaded] {len(asv_seqs)} {assay} ASVs, {len(reads_long)} site-ASV records"
+        )
+    
+    if not all_asv_seqs:
+        raise ValueError(
+            "No FASTA/TSV files were processed. Please provide FASTA and TSV file pairs."
+        )
+    
+    combined_asv_seqs = pd.concat(all_asv_seqs, ignore_index=True)
+    combined_reads_long = pd.concat(all_reads_long, ignore_index=True)
+    
+    # Count by assay
+    assay_counts = combined_asv_seqs["assay"].value_counts()
+    print(
+        f"[Combined] Total: {len(combined_asv_seqs)} unique ASVs ({', '.join([f'{count} {assay}' for assay, count in assay_counts.items()])})"
+    )
+    print(f"[Combined] Total: {len(combined_reads_long)} site-ASV records")
+    
+    return combined_asv_seqs, combined_reads_long
+
+
 def process_excel_to_dataframes(
     files_by_assay: Dict[str, List[Path]],
     min_length: int = None,
@@ -437,9 +569,11 @@ def run_umap(
 
 def main():
     parser = argparse.ArgumentParser(
-        description="eDNA DNABERT-S embedding pipeline (Excel -> ASVs -> sites -> t-SNE/UMAP)",
+        description="eDNA DNABERT-S embedding pipeline (Excel/FASTA+TSV -> ASVs -> sites -> t-SNE/UMAP)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
+    
+    # Excel input options (original)
     parser.add_argument(
         "--12s-files",
         nargs="*",
@@ -454,6 +588,29 @@ def main():
         default=[],
         help="Path(s) to Excel file(s) containing 16S data",
     )
+    
+    # FASTA + TSV input options (new)
+    parser.add_argument(
+        "--12s-fasta",
+        type=Path,
+        help="Path to FASTA file containing 12S ASV sequences",
+    )
+    parser.add_argument(
+        "--12s-counts",
+        type=Path,
+        help="Path to TSV file containing 12S ASV counts (ASVs as rows, sites as columns)",
+    )
+    parser.add_argument(
+        "--16s-fasta",
+        type=Path,
+        help="Path to FASTA file containing 16S ASV sequences",
+    )
+    parser.add_argument(
+        "--16s-counts",
+        type=Path,
+        help="Path to TSV file containing 16S ASV counts (ASVs as rows, sites as columns)",
+    )
+    
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory")
     parser.add_argument(
         "--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)"
@@ -529,22 +686,59 @@ def main():
     seed_everything(args.seed)
     args.outdir.mkdir(parents=True, exist_ok=True)
 
-    # Process Excel files by assay
-    files_by_assay = {}
-    if args.__dict__["12s_files"]:
-        files_by_assay["12S"] = args.__dict__["12s_files"]
-    if args.__dict__["16s_files"]:
-        files_by_assay["16S"] = args.__dict__["16s_files"]
-
-    if not files_by_assay:
+    # Validate input: user must provide either Excel files OR FASTA+TSV files, but not both
+    has_excel = bool(args.__dict__["12s_files"] or args.__dict__["16s_files"])
+    has_fasta_tsv = bool(args.__dict__["12s_fasta"] or args.__dict__["16s_fasta"] or 
+                        args.__dict__["12s_counts"] or args.__dict__["16s_counts"])
+    
+    if has_excel and has_fasta_tsv:
         raise ValueError(
-            "Please provide at least one Excel file using --12s-files and/or --16s-files"
+            "Please provide either Excel files (--12s-files/--16s-files) OR "
+            "FASTA+TSV files (--12s-fasta/--12s-counts/--16s-fasta/--16s-counts), but not both."
         )
+    
+    if not has_excel and not has_fasta_tsv:
+        raise ValueError(
+            "Please provide input files: either Excel files (--12s-files/--16s-files) OR "
+            "FASTA+TSV files (--12s-fasta/--12s-counts/--16s-fasta/--16s-counts)."
+        )
+    
+    # Validate FASTA+TSV pairs if using that input method
+    if has_fasta_tsv:
+        if args.__dict__["12s_fasta"] and not args.__dict__["12s_counts"]:
+            raise ValueError("If providing --12s-fasta, you must also provide --12s-counts")
+        if args.__dict__["12s_counts"] and not args.__dict__["12s_fasta"]:
+            raise ValueError("If providing --12s-counts, you must also provide --12s-fasta")
+        if args.__dict__["16s_fasta"] and not args.__dict__["16s_counts"]:
+            raise ValueError("If providing --16s-fasta, you must also provide --16s-counts")
+        if args.__dict__["16s_counts"] and not args.__dict__["16s_fasta"]:
+            raise ValueError("If providing --16s-counts, you must also provide --16s-fasta")
 
-    print(f"[Loading] Processing Excel files by assay")
-    asv_seqs, reads_long = process_excel_to_dataframes(
-        files_by_assay, min_length=args.min_asv_length, max_length=args.max_asv_length
-    )
+    # Process input files based on input method
+    if has_excel:
+        # Original Excel processing
+        files_by_assay = {}
+        if args.__dict__["12s_files"]:
+            files_by_assay["12S"] = args.__dict__["12s_files"]
+        if args.__dict__["16s_files"]:
+            files_by_assay["16S"] = args.__dict__["16s_files"]
+
+        print(f"[Loading] Processing Excel files by assay")
+        asv_seqs, reads_long = process_excel_to_dataframes(
+            files_by_assay, min_length=args.min_asv_length, max_length=args.max_asv_length
+        )
+    else:
+        # New FASTA+TSV processing
+        print(f"[Loading] Processing FASTA and TSV files")
+        asv_seqs, reads_long = process_fasta_tsv_to_dataframes(
+            fasta_12s=args.__dict__["12s_fasta"],
+            fasta_16s=args.__dict__["16s_fasta"],
+            counts_12s=args.__dict__["12s_counts"],
+            counts_16s=args.__dict__["16s_counts"],
+            min_length=args.min_asv_length,
+            max_length=args.max_asv_length
+        )
+        
     print(
         f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows"
     )
