@@ -310,6 +310,7 @@ def load_model_and_tokenizer(
     base_config: str,
     model_name: str,
     revision: str,
+    config_revision: str,
     cache_dir: str = None,
 ):
     """
@@ -317,7 +318,7 @@ def load_model_and_tokenizer(
     The revision is applied to both tokenizer and model for reproducibility.
     """
     config = AutoConfig.from_pretrained(
-        base_config, trust_remote_code=True, cache_dir=cache_dir
+        base_config, trust_remote_code=True, cache_dir=cache_dir, revision=config_revision
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_name, trust_remote_code=True, cache_dir=cache_dir, revision=revision
@@ -654,7 +655,6 @@ def main():
     parser.add_argument("--model-16s", default="OceanOmics/eDNABERT-S_16S")
     parser.add_argument("--base-config", default="zhihan1996/DNABERT-S")
 
-    # NEW: per-assay revisions with sensible defaults
     parser.add_argument(
         "--revision-12s",
         default="72923454c20c3b8c28ecd8d601e4140d92667e46",
@@ -664,6 +664,11 @@ def main():
         "--revision-16s",
         default="d762ca73d44292a0b1074a7d760475f80154580c",
         help="Git commit hash or tag for the 16S model",
+    )
+    parser.add_argument(
+        "--config-revision",
+        default="00e47f96cdea35e4b6f5df89e5419cbe47d490c6",
+        help="Git commit hash for the base config",
     )
 
     parser.add_argument("--pooling-token", default="mean", choices=["mean", "cls"])
@@ -855,11 +860,13 @@ def main():
 
         print(f"\n=== Embedding {assay} ASVs ===")
         revision = args.revision_12s if assay == "12S" else args.revision_16s
+        config_revision = arg.config_revision
         tok, mdl, device = load_model_and_tokenizer(
             assay=assay,
             base_config=args.base_config,
             model_name=assay_models[assay],
             revision=revision,
+            config_revision=config_revision,
             cache_dir=args.cache_dir,
         )
         sub = asv_seqs[asv_seqs["assay"] == assay][
