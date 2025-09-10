@@ -45,24 +45,24 @@ def parse_fasta(fasta_path: Path) -> Dict[str, str]:
     sequences = {}
     current_id = None
     current_seq = []
-    
-    with open(fasta_path, 'r') as f:
+
+    with open(fasta_path, "r") as f:
         for line in f:
             line = line.strip()
-            if line.startswith('>'):
+            if line.startswith(">"):
                 # Save previous sequence if exists
                 if current_id is not None:
-                    sequences[current_id] = ''.join(current_seq)
+                    sequences[current_id] = "".join(current_seq)
                 # Start new sequence
                 current_id = line[1:]  # Remove '>' character
                 current_seq = []
             elif current_id is not None:
                 current_seq.append(line)
-    
+
     # Don't forget the last sequence
     if current_id is not None:
-        sequences[current_id] = ''.join(current_seq)
-    
+        sequences[current_id] = "".join(current_seq)
+
     return sequences
 
 
@@ -78,7 +78,7 @@ def process_fasta_tsv_to_dataframes(
     Process FASTA and TSV files to create ASV sequences and reads DataFrames.
     Args:
         fasta_12s: Path to 12S FASTA file
-        fasta_16s: Path to 16S FASTA file  
+        fasta_16s: Path to 16S FASTA file
         counts_12s: Path to 12S counts TSV file
         counts_16s: Path to 16S counts TSV file
         min_length: Minimum ASV sequence length (optional)
@@ -87,86 +87,85 @@ def process_fasta_tsv_to_dataframes(
     """
     all_asv_seqs = []
     all_reads_long = []
-    
+
     # Process each assay
     for assay, fasta_path, counts_path in [
         ("12S", fasta_12s, counts_12s),
-        ("16S", fasta_16s, counts_16s)
+        ("16S", fasta_16s, counts_16s),
     ]:
         if fasta_path is None or counts_path is None:
             continue
-            
+
         print(f"[Processing] {assay} FASTA: {fasta_path}")
         print(f"[Processing] {assay} counts: {counts_path}")
-        
+
         # Parse FASTA file
         sequences = parse_fasta(fasta_path)
         print(f"[Loaded] {len(sequences)} sequences from {fasta_path}")
-        
+
         # Create ASV sequences DataFrame
-        asv_seqs = pd.DataFrame([
-            {"asv_id": seq_id, "sequence": seq} 
-            for seq_id, seq in sequences.items()
-        ])
-        
+        asv_seqs = pd.DataFrame(
+            [{"asv_id": seq_id, "sequence": seq} for seq_id, seq in sequences.items()]
+        )
+
         # Apply length filtering if specified
         initial_count = len(asv_seqs)
         if min_length is not None:
             asv_seqs = asv_seqs[asv_seqs["sequence"].str.len() >= min_length]
         if max_length is not None:
             asv_seqs = asv_seqs[asv_seqs["sequence"].str.len() <= max_length]
-            
+
         filtered_count = len(asv_seqs)
         if initial_count != filtered_count:
             print(
                 f"[Filtered] {assay}: {initial_count} -> {filtered_count} ASVs (length filter: {min_length or 'no min'} - {max_length or 'no max'})"
             )
-        
+
         asv_seqs["assay"] = assay
         asv_seqs = asv_seqs[["asv_id", "assay", "sequence"]]
-        
+
         # Load counts TSV file
         # Expected format: first column is ASV IDs, remaining columns are site counts
-        counts_df = pd.read_csv(counts_path, sep='\t', index_col=0)
-        print(f"[Loaded] Counts table: {counts_df.shape[0]} ASVs x {counts_df.shape[1]} sites")
-        
-        # Convert to long format
-        counts_df.index.name = 'asv_id'
-        reads_long = counts_df.reset_index().melt(
-            id_vars=['asv_id'], 
-            var_name='site_id', 
-            value_name='reads'
+        counts_df = pd.read_csv(counts_path, sep="\t", index_col=0)
+        print(
+            f"[Loaded] Counts table: {counts_df.shape[0]} ASVs x {counts_df.shape[1]} sites"
         )
-        
+
+        # Convert to long format
+        counts_df.index.name = "asv_id"
+        reads_long = counts_df.reset_index().melt(
+            id_vars=["asv_id"], var_name="site_id", value_name="reads"
+        )
+
         # Filter reads to only include ASVs that passed length filtering
         valid_asvs = set(asv_seqs["asv_id"])
         reads_long = reads_long[reads_long["asv_id"].isin(valid_asvs)]
-        
+
         reads_long["assay"] = assay
         reads_long = reads_long[["site_id", "assay", "asv_id", "reads"]]
-        
+
         all_asv_seqs.append(asv_seqs)
         all_reads_long.append(reads_long)
-        
+
         print(
             f"[Loaded] {len(asv_seqs)} {assay} ASVs, {len(reads_long)} site-ASV records"
         )
-    
+
     if not all_asv_seqs:
         raise ValueError(
             "No FASTA/TSV files were processed. Please provide FASTA and TSV file pairs."
         )
-    
+
     combined_asv_seqs = pd.concat(all_asv_seqs, ignore_index=True)
     combined_reads_long = pd.concat(all_reads_long, ignore_index=True)
-    
+
     # Count by assay
     assay_counts = combined_asv_seqs["assay"].value_counts()
     print(
         f"[Combined] Total: {len(combined_asv_seqs)} unique ASVs ({', '.join([f'{count} {assay}' for assay, count in assay_counts.items()])})"
     )
     print(f"[Combined] Total: {len(combined_reads_long)} site-ASV records")
-    
+
     return combined_asv_seqs, combined_reads_long
 
 
@@ -253,11 +252,6 @@ def process_excel_to_dataframes(
     combined_asv_seqs = pd.concat(all_asv_seqs, ignore_index=True)
     combined_reads_long = pd.concat(all_reads_long, ignore_index=True)
 
-    # Remove duplicates (same ASV across files should be identical)
-    # combined_asv_seqs = combined_asv_seqs.drop_duplicates(subset=['asv_id', 'assay'])
-    # TODO: come up with a better way to ignoring duplicate ASVs while also
-    # adding their read counts
-
     # Drop source_file column for final output (keep internal structure consistent)
     combined_asv_seqs = combined_asv_seqs[["asv_id", "assay", "sequence"]]
     combined_reads_long = combined_reads_long[["site_id", "assay", "asv_id", "reads"]]
@@ -312,20 +306,34 @@ def clean_seq(seq: str) -> str:
 
 
 def load_model_and_tokenizer(
-    assay: str, base_config: str, model_name: str, cache_dir: str = None
+    assay: str,
+    base_config: str,
+    model_name: str,
+    revision: str,
+    cache_dir: str = None,
 ):
+    """
+    Load config (base), tokenizer and model for a given assay and revision.
+    The revision is applied to both tokenizer and model for reproducibility.
+    """
     config = AutoConfig.from_pretrained(
         base_config, trust_remote_code=True, cache_dir=cache_dir
     )
     tokenizer = AutoTokenizer.from_pretrained(
-        model_name, trust_remote_code=True, cache_dir=cache_dir
+        model_name, trust_remote_code=True, cache_dir=cache_dir, revision=revision
     )
     model = AutoModel.from_pretrained(
-        model_name, trust_remote_code=True, config=config, cache_dir=cache_dir
+        model_name,
+        trust_remote_code=True,
+        config=config,
+        cache_dir=cache_dir,
+        revision=revision,
     )
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model = model.to(device).eval()
-    print(f"[{assay}] Loaded model on device: {device}")
+    print(
+        f"[{assay}] Loaded model '{model_name}' (revision={revision}) on device: {device}"
+    )
     return tokenizer, model, device
 
 
@@ -367,7 +375,6 @@ def embed_sequences(
             out = model(**enc)
 
         # Handle both tuple output and ModelOutput with last_hidden_state
-        # TODO: is this correct??
         if isinstance(out, tuple):
             hidden = out[0]  # First element is typically the hidden states
         else:
@@ -410,7 +417,7 @@ def weights_from_counts(counts, mode="hellinger", tau=3.0, eps=1e-12):
         w = np.sqrt(a)
         w /= w.sum() + eps
     elif mode == "clr":
-        c_adj = c + eps  
+        c_adj = c + eps
         log_c = np.log(c_adj)
         clr_vals = log_c - np.mean(log_c)
         # Convert back to weights (could also use softmax, should be same??)
@@ -497,14 +504,14 @@ def compute_site_embeddings_from_dfs(
     ):
         embeds = g[dim_cols].to_numpy(dtype=np.float32)
         counts = g["reads"].to_numpy(dtype=np.float64)
-        
+
         if pooling == "simple_mean":
             # No normalisation - just simple arithmetic mean
             vec = site_embed_simple_mean(embeds)
         else:
             # All other pooling methods use weights
             w = weights_from_counts(counts, mode=weight_mode)
-            
+
             if pooling == "weighted_mean":
                 vec = site_embed_weighted_mean(embeds, w)
             elif pooling == "l2_weighted_mean":
@@ -579,7 +586,7 @@ def main():
         description="eDNA DNABERT-S embedding pipeline (Excel/FASTA+TSV -> ASVs -> sites -> t-SNE/UMAP)",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )
-    
+
     # Excel input options (original)
     parser.add_argument(
         "--12s-files",
@@ -595,7 +602,7 @@ def main():
         default=[],
         help="Path(s) to Excel file(s) containing 16S data",
     )
-    
+
     # FASTA + TSV input options (new)
     parser.add_argument(
         "--12s-fasta",
@@ -617,7 +624,7 @@ def main():
         type=Path,
         help="Path to TSV file containing 16S ASV counts (ASVs as rows, sites as columns)",
     )
-    
+
     parser.add_argument("--outdir", required=True, type=Path, help="Output directory")
     parser.add_argument(
         "--cache-dir", default=None, type=str, help="HuggingFace cache dir (optional)"
@@ -647,6 +654,18 @@ def main():
     parser.add_argument("--model-16s", default="OceanOmics/eDNABERT-S_16S")
     parser.add_argument("--base-config", default="zhihan1996/DNABERT-S")
 
+    # NEW: per-assay revisions with sensible defaults
+    parser.add_argument(
+        "--revision-12s",
+        default="72923454c20c3b8c28ecd8d601e4140d92667e46",
+        help="Git commit hash or tag for the 12S model",
+    )
+    parser.add_argument(
+        "--revision-16s",
+        default="d762ca73d44292a0b1074a7d760475f80154580c",
+        help="Git commit hash or tag for the 16S model",
+    )
+
     parser.add_argument("--pooling-token", default="mean", choices=["mean", "cls"])
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument(
@@ -667,7 +686,13 @@ def main():
     parser.add_argument(
         "--site-pooling",
         default="l2_weighted_mean",
-        choices=["l2_weighted_mean", "weighted_mean", "gem_p2", "gem_p3", "simple_mean"],
+        choices=[
+            "l2_weighted_mean",
+            "weighted_mean",
+            "gem_p2",
+            "gem_p3",
+            "simple_mean",
+        ],
         help="Method for pooling ASV embeddings to site embeddings. 'simple_mean' performs no normalisation.",
     )
 
@@ -695,31 +720,43 @@ def main():
 
     # Validate input: user must provide either Excel files OR FASTA+TSV files, but not both
     has_excel = bool(args.__dict__["12s_files"] or args.__dict__["16s_files"])
-    has_fasta_tsv = bool(args.__dict__["12s_fasta"] or args.__dict__["16s_fasta"] or 
-                        args.__dict__["12s_counts"] or args.__dict__["16s_counts"])
-    
+    has_fasta_tsv = bool(
+        args.__dict__["12s_fasta"]
+        or args.__dict__["16s_fasta"]
+        or args.__dict__["12s_counts"]
+        or args.__dict__["16s_counts"]
+    )
+
     if has_excel and has_fasta_tsv:
         raise ValueError(
             "Please provide either Excel files (--12s-files/--16s-files) OR "
             "FASTA+TSV files (--12s-fasta/--12s-counts/--16s-fasta/--16s-counts), but not both."
         )
-    
+
     if not has_excel and not has_fasta_tsv:
         raise ValueError(
             "Please provide input files: either Excel files (--12s-files/--16s-files) OR "
             "FASTA+TSV files (--12s-fasta/--12s-counts/--16s-fasta/--16s-counts)."
         )
-    
+
     # Validate FASTA+TSV pairs if using that input method
     if has_fasta_tsv:
         if args.__dict__["12s_fasta"] and not args.__dict__["12s_counts"]:
-            raise ValueError("If providing --12s-fasta, you must also provide --12s-counts")
+            raise ValueError(
+                "If providing --12s-fasta, you must also provide --12s-counts"
+            )
         if args.__dict__["12s_counts"] and not args.__dict__["12s_fasta"]:
-            raise ValueError("If providing --12s-counts, you must also provide --12s-fasta")
+            raise ValueError(
+                "If providing --12s-counts, you must also provide --12s-fasta"
+            )
         if args.__dict__["16s_fasta"] and not args.__dict__["16s_counts"]:
-            raise ValueError("If providing --16s-fasta, you must also provide --16s-counts")
+            raise ValueError(
+                "If providing --16s-fasta, you must also provide --16s-counts"
+            )
         if args.__dict__["16s_counts"] and not args.__dict__["16s_fasta"]:
-            raise ValueError("If providing --16s-counts, you must also provide --16s-fasta")
+            raise ValueError(
+                "If providing --16s-counts, you must also provide --16s-fasta"
+            )
 
     # Process input files based on input method
     if has_excel:
@@ -732,7 +769,9 @@ def main():
 
         print(f"[Loading] Processing Excel files by assay")
         asv_seqs, reads_long = process_excel_to_dataframes(
-            files_by_assay, min_length=args.min_asv_length, max_length=args.max_asv_length
+            files_by_assay,
+            min_length=args.min_asv_length,
+            max_length=args.max_asv_length,
         )
     else:
         # New FASTA+TSV processing
@@ -743,9 +782,9 @@ def main():
             counts_12s=args.__dict__["12s_counts"],
             counts_16s=args.__dict__["16s_counts"],
             min_length=args.min_asv_length,
-            max_length=args.max_asv_length
+            max_length=args.max_asv_length,
         )
-        
+
     print(
         f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows"
     )
@@ -815,8 +854,13 @@ def main():
             continue
 
         print(f"\n=== Embedding {assay} ASVs ===")
+        revision = args.revision_12s if assay == "12S" else args.revision_16s
         tok, mdl, device = load_model_and_tokenizer(
-            assay, args.base_config, assay_models[assay], args.cache_dir
+            assay=assay,
+            base_config=args.base_config,
+            model_name=assay_models[assay],
+            revision=revision,
+            cache_dir=args.cache_dir,
         )
         sub = asv_seqs[asv_seqs["assay"] == assay][
             ["asv_id", "sequence"]
@@ -847,7 +891,6 @@ def main():
             site_df = pd.read_parquet(outp)
             site_embeddings[assay] = site_df
             continue
-
         print(f"\n=== Site pooling for {assay} ===")
         asv_emb = pd.read_parquet(asv_embeddings_paths[assay])  # asv_id, assay, dim_*
         sub_reads = reads_long[reads_long["assay"] == assay]
