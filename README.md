@@ -126,3 +126,9 @@ The initial version of this code is written by GPT5 after a long discussion! Eve
 # Regression
 
 I am working on predicting latitude/longitude from the site embeddings alone. That is happening in `regress.py`. I am unclear how to handle replicates best as there's a lot of variability in between - by not accounting for replicates I get a test R2 of about 0.7, with grouped KFold stratification by replicate it goes down to 0.5 (better). 
+
+# FAQ
+
+- I am running out of memory!
+
+I've added chunking because with all of the OceanOmics data, I needed 1TB of memory. If you run out of memory with chunking enabled, lower the chunking size in `compute_site_embeddings_from_dfs`.
