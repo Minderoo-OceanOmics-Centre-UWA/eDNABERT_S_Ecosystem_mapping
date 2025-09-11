@@ -13,6 +13,9 @@ import openpyxl
 # get rid of boring user warning
 # UserWarning: Data Validation extension is not supported and will be removed
 openpyxl.reader.excel.warnings.simplefilter(action="ignore")
+# get rid of boring tokenizers warning
+# The current process just got forked, after parallelism has already been used. Disabling parallelism to avoid deadlocks...
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from tqdm import tqdm
 
@@ -318,7 +321,10 @@ def load_model_and_tokenizer(
     The revision is applied to both tokenizer and model for reproducibility.
     """
     config = AutoConfig.from_pretrained(
-        base_config, trust_remote_code=True, cache_dir=cache_dir, revision=config_revision
+        base_config,
+        trust_remote_code=True,
+        cache_dir=cache_dir,
+        revision=config_revision,
     )
     tokenizer = AutoTokenizer.from_pretrained(
         model_name, trust_remote_code=True, cache_dir=cache_dir, revision=revision
@@ -477,65 +483,154 @@ def compute_site_embeddings_from_dfs(
     per_assay: bool = True,
     weight_mode: str = "hellinger",
     pooling: str = "l2_weighted_mean",
+    chunk_size: int = 50000,  # TODO: fiddle iwth this param
 ) -> pd.DataFrame:
     """
-    reads_long: columns [site_id, assay, asv_id, reads]
-    asv_emb_df: columns [asv_id, assay, dim_*]
-    returns DataFrame with per-(site,assay) vectors split across dim_* columns
+    Memory-efficient version that processes site embeddings in chunks.
+    Optimized for systems with large amounts of RAM (500GB+).
+
+    Args:
+        reads_long: columns [site_id, assay, asv_id, reads]
+        asv_emb_df: columns [asv_id, assay, dim_*]
+        per_assay: whether to compute per-(site,assay) or just per-site
+        weight_mode: weighting method for pooling
+        pooling: pooling method
+        chunk_size: number of site-assay groups to process at once
+
+    Returns:
+        DataFrame with per-(site,assay) vectors split across dim_* columns
     """
+    import gc
+
     assert {"site_id", "assay", "asv_id", "reads"} <= set(reads_long.columns)
     dim_cols = [c for c in asv_emb_df.columns if c.startswith("dim_")]
     if not dim_cols:
         raise ValueError("asv_emb_df contains no embedding columns (dim_*)")
 
-    df = reads_long.merge(
-        asv_emb_df[["asv_id", "assay"] + dim_cols], on=["asv_id", "assay"], how="inner"
+    # Filter out zero reads first to reduce data size
+    # most sightings are 0.
+    print("[Memory-Efficient] Filtering zero reads...")
+    reads_filtered = reads_long[reads_long["reads"] > 0].copy()
+    if reads_filtered.empty:
+        raise ValueError("No ASVs with reads > 0")
+
+    print(
+        f"[Memory-Efficient] Filtered from {len(reads_long):,} to {len(reads_filtered):,} records"
     )
-    df = df[df["reads"] > 0].copy()
-    if df.empty:
-        raise ValueError(
-            "No overlapping ASVs with reads > 0 and embeddings for this assay."
-        )
 
-    group_cols = ["site_id", "assay"] if per_assay else ["site_id"]
-    records = []
-    unique_groups = df[group_cols].drop_duplicates().shape[0]
-    for keys, g in tqdm(
-        df.groupby(group_cols, sort=False), total=unique_groups, desc="Pooling sites"
+    print("[Memory-Efficient] Creating ASV embedding lookup...")
+    asv_lookup = {}
+    embedding_dim = len(dim_cols)
+
+    for _, row in tqdm(
+        asv_emb_df.iterrows(), total=len(asv_emb_df), desc="Building lookup"
     ):
-        embeds = g[dim_cols].to_numpy(dtype=np.float32)
-        counts = g["reads"].to_numpy(dtype=np.float64)
+        key = (row["asv_id"], row["assay"])
+        # Use float32 to save memory
+        asv_lookup[key] = row[dim_cols].to_numpy(dtype=np.float32)
 
-        if pooling == "simple_mean":
-            # No normalisation - just simple arithmetic mean
-            vec = site_embed_simple_mean(embeds)
-        else:
-            # All other pooling methods use weights
-            w = weights_from_counts(counts, mode=weight_mode)
+    print(
+        f"[Memory-Efficient] Created lookup for {len(asv_lookup):,} ASV embeddings (dim={embedding_dim})"
+    )
 
-            if pooling == "weighted_mean":
-                vec = site_embed_weighted_mean(embeds, w)
-            elif pooling == "l2_weighted_mean":
-                vec = site_embed_l2_weighted_mean(embeds, w)
-            elif pooling.startswith("gem"):
-                p = 2.0
-                if "_p" in pooling:
-                    try:
-                        p = float(pooling.split("_p")[-1])
-                    except Exception:
-                        p = 2.0
-                vec = site_embed_gem(embeds, w, p=p)
+    # Get unique site-assay combinations
+    group_cols = ["site_id", "assay"] if per_assay else ["site_id"]
+    unique_groups = reads_filtered[group_cols].drop_duplicates().reset_index(drop=True)
+    total_groups = len(unique_groups)
+
+    print(
+        f"[Memory-Efficient] Processing {total_groups:,} unique groups in chunks of {chunk_size:,}"
+    )
+
+    all_records = []
+    processed_groups = 0
+
+    # Process in chunks
+    for chunk_start in tqdm(
+        range(0, total_groups, chunk_size), desc="Processing chunks"
+    ):
+        chunk_end = min(chunk_start + chunk_size, total_groups)
+        chunk_groups = unique_groups.iloc[chunk_start:chunk_end]
+
+        chunk_records = []
+
+        for _, group_row in chunk_groups.iterrows():
+            if per_assay:
+                site_id, assay = group_row["site_id"], group_row["assay"]
+                group_filter = (reads_filtered["site_id"] == site_id) & (
+                    reads_filtered["assay"] == assay
+                )
             else:
-                raise ValueError(f"Unknown pooling: {pooling}")
+                site_id = group_row["site_id"]
+                group_filter = reads_filtered["site_id"] == site_id
 
-        rec = {"site_id": keys[0]}
-        if per_assay:
-            rec["assay"] = keys[1]
-        for i, val in enumerate(vec):
-            rec[f"dim_{i}"] = float(val)
-        records.append(rec)
+            group_data = reads_filtered[group_filter]
+            if group_data.empty:
+                continue
 
-    return pd.DataFrame(records)
+            # Collect embeddings and counts for this group
+            embeds_list = []
+            counts_list = []
+
+            for _, row in group_data.iterrows():
+                key = (row["asv_id"], row["assay"])
+                if key in asv_lookup:
+                    embeds_list.append(asv_lookup[key])
+                    counts_list.append(row["reads"])
+
+            if not embeds_list:
+                continue  # No valid embeddings for this group
+
+            # Convert to numpy arrays
+            embeds = np.stack(embeds_list, axis=0)
+            counts = np.array(counts_list, dtype=np.float64)
+
+            # Compute pooled embedding using existing functions
+            if pooling == "simple_mean":
+                vec = site_embed_simple_mean(embeds)
+            else:
+                w = weights_from_counts(counts, mode=weight_mode)
+
+                if pooling == "weighted_mean":
+                    vec = site_embed_weighted_mean(embeds, w)
+                elif pooling == "l2_weighted_mean":
+                    vec = site_embed_l2_weighted_mean(embeds, w)
+                elif pooling.startswith("gem"):
+                    p = 2.0
+                    if "_p" in pooling:
+                        try:
+                            p = float(pooling.split("_p")[-1])
+                        except Exception:
+                            p = 2.0
+                    vec = site_embed_gem(embeds, w, p=p)
+                else:
+                    raise ValueError(f"Unknown pooling: {pooling}")
+
+            # Build record
+            rec = {"site_id": site_id}
+            if per_assay:
+                rec["assay"] = assay
+            for i, val in enumerate(vec):
+                rec[f"dim_{i}"] = float(val)
+            chunk_records.append(rec)
+
+        all_records.extend(chunk_records)
+        processed_groups += len(chunk_groups)
+
+        # Print progress and memory info
+        if chunk_start % (chunk_size * 5) == 0:  # Every 5 chunks
+            print(
+                f"[Memory-Efficient] Processed {processed_groups:,}/{total_groups:,} groups ({processed_groups / total_groups * 100:.1f}%)"
+            )
+
+        # Force garbage collection every 10 chunks to keep memory usage down
+        if chunk_start % (chunk_size * 10) == 0:
+            gc.collect()
+
+    print(
+        f"[Memory-Efficient] Completed processing {len(all_records):,} site embeddings"
+    )
+    return pd.DataFrame(all_records)
 
 
 def run_tsne(
@@ -580,6 +675,31 @@ def run_umap(
     out["umap_x"] = Y[:, 0]
     out["umap_y"] = Y[:, 1]
     return out
+
+
+def estimate_memory_usage(reads_long, asv_emb_df):
+    """
+    Estimate peak memory usage to help choose appropriate chunk size.
+    """
+    n_reads = len(reads_long[reads_long["reads"] > 0])
+    n_asvs = len(asv_emb_df)
+    embedding_dim = len([c for c in asv_emb_df.columns if c.startswith("dim_")])
+
+    # Estimate memory for ASV lookup (embeddings)
+    asv_lookup_gb = (n_asvs * embedding_dim * 4) / (1024**3)  # float32 = 4 bytes
+
+    # Estimate memory for intermediate processing
+    # This is rough - depends on data sparsity
+    max_asvs_per_site = 1000  # Conservative estimate
+    temp_memory_gb = (max_asvs_per_site * embedding_dim * 4) / (1024**3)
+
+    total_gb = asv_lookup_gb + temp_memory_gb
+
+    print(f"[Memory Estimate] ASV lookup: {asv_lookup_gb:.2f} GB")
+    print(f"[Memory Estimate] Temp processing: {temp_memory_gb:.2f} GB")
+    print(f"[Memory Estimate] Total estimated: {total_gb:.2f} GB")
+
+    return total_gb
 
 
 def main():
@@ -901,6 +1021,9 @@ def main():
         print(f"\n=== Site pooling for {assay} ===")
         asv_emb = pd.read_parquet(asv_embeddings_paths[assay])  # asv_id, assay, dim_*
         sub_reads = reads_long[reads_long["assay"] == assay]
+        # print memory estimation
+        estimate_memory_usage(sub_reads, asv_emb)
+
         site_df = compute_site_embeddings_from_dfs(
             reads_long=sub_reads,
             asv_emb_df=asv_emb,
