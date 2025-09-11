@@ -860,7 +860,7 @@ def main():
 
         print(f"\n=== Embedding {assay} ASVs ===")
         revision = args.revision_12s if assay == "12S" else args.revision_16s
-        config_revision = arg.config_revision
+        config_revision = args.config_revision
         tok, mdl, device = load_model_and_tokenizer(
             assay=assay,
             base_config=args.base_config,
