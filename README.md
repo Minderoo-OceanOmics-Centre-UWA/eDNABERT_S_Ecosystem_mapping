@@ -1,9 +1,14 @@
 # Using eDNA-data while ignoring taxonomy to learn more about ecosystems!
 
+eDNA Embedding Pipeline is a command-line tool for transforming environmental DNA (eDNA) metabarcoding data into high-dimensional embeddings using DNABERT-S models. It supports both Excel-based outputs (FAIRe standard) and FASTA + count tables, and produces:
 
-This script takes a FAIRe-formatted Excel sheet with ASV results of 12S (MiFishU, Miya et al) or 16S sequencing (Berry et al) ASVs, downloads the corresponding finetuned OceanOmics DNABERT-S models, and averages all embeddings for each site by weighing the embeddings using per-site read counts of all ASVs. We get per-site embeddings!
+- ASV-level embeddings using pretrained transformer models (12S and 16S assays)
+- Site-level embeddings via weighted pooling strategies
+- Optional fusion of multiple assays (e.g., 12S + 16S)
+- Dimensionality reduction with t-SNE or UMAP for visualization
+- Intermediate outputs in Parquet format for downstream analysis
 
-It then stores the per-site embeddings in a paraquet file, and optionally runs tSNE or UMAP on those embeddings to get per-site representations.
+This pipeline is designed for *biodiversity research*, *ecological monitoring*, and *machine learning* workflows where robust, vectorised, taxonomy-indepndent representations of eDNA data are needed.
 
 This is what the tSNE clustering of those per-site embeddings looks like along a latitude gradient:
 
