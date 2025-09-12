@@ -1,6 +1,6 @@
 # Using eDNA-data while ignoring taxonomy to learn more about ecosystems!
 
-eDNA Embedding Pipeline is a command-line tool for transforming environmental DNA (eDNA) metabarcoding data into high-dimensional embeddings using DNABERT-S models. It supports both Excel-based outputs (FAIRe standard) and FASTA + count tables, and produces:
+This is a command-line tool for transforming environmental DNA (eDNA) metabarcoding data into high-dimensional embeddings using eDNA-finetuned DNABERT-S models. It supports both Excel-based outputs (FAIRe standard) and FASTA + count tables, and produces:
 
 - ASV-level embeddings using pretrained transformer models (12S and 16S assays)
 - Site-level embeddings via weighted pooling strategies
@@ -8,7 +8,7 @@ eDNA Embedding Pipeline is a command-line tool for transforming environmental DN
 - Dimensionality reduction with t-SNE or UMAP for visualization
 - Intermediate outputs in Parquet format for downstream analysis
 
-This pipeline is designed for *biodiversity research*, *ecological monitoring*, and *machine learning* workflows where robust, vectorised, taxonomy-indepndent representations of eDNA data are needed.
+This pipeline is designed for *biodiversity research*, *ecological monitoring*, and *machine learning* workflows where robust, vectorised, taxonomy-independent representations of eDNA data are needed.
 
 This is what the tSNE clustering of those per-site embeddings looks like along a latitude gradient:
 
@@ -16,6 +16,8 @@ This is what the tSNE clustering of those per-site embeddings looks like along a
 <img width="682" height="512" alt="image" src="https://github.com/user-attachments/assets/2a5a1418-1379-401c-9fad-31330b9a7236" />
 
 Each dot is one site, colored by their latitude, shaped by sample collection device.
+
+More importantly, you can use the raw embedding in regressions! Can we use the embeddings to predict how 'healthy' an ecosystem is? More to come here.
 
 # Usage
 
