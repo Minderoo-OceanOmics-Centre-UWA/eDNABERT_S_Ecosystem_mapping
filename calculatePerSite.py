@@ -535,7 +535,8 @@ def process_excel_to_dataframes(
 
             # Process reads from otuRaw sheet
             reads = pd.read_excel(excel_path, sheet_name="otuRaw")
-            reads = reads.drop("Unnamed: 0", axis=1)
+            # some of our FAIRe sheets have this column, not all
+            reads = reads.drop("Unnamed: 0", axis=1, errors="ignore")
             reads = reads.rename(columns={"ASV": "asv_id"})
             reads_long = reads.drop("ASV_sequence", axis=1).melt(
                 id_vars=["asv_id"], var_name="site_id", value_name="reads"
