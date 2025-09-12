@@ -1,5 +1,6 @@
 # Using eDNA-data while ignoring taxonomy to learn more about ecosystems!
 
+
 This script takes a FAIRe-formatted Excel sheet with ASV results of 12S (MiFishU, Miya et al) or 16S sequencing (Berry et al) ASVs, downloads the corresponding finetuned OceanOmics DNABERT-S models, and averages all embeddings for each site by weighing the embeddings using per-site read counts of all ASVs. We get per-site embeddings!
 
 It then stores the per-site embeddings in a paraquet file, and optionally runs tSNE or UMAP on those embeddings to get per-site representations.
@@ -13,16 +14,18 @@ Each dot is one site, colored by their latitude, shaped by sample collection dev
 
 # Usage
 
-    python calculate.py --cache-dir './cache' --12s-files run1.xlsx --16s-files run2.xlsx
+    python calculatePerSite.py --cache-dir './cache' --12s-files run1.xlsx --16s-files run2.xlsx
         --run-tsne   --outdir './results' --run-umap
 
 <pre>
-usage: calculatePerSite.py [-h] [--12s-files [12S_FILES ...]] [--16s-files [16S_FILES ...]] [--12s-fasta 12S_FASTA] [--12s-counts 12S_COUNTS] [--16s-fasta 16S_FASTA] [--16s-counts 16S_COUNTS] --outdir
-                           OUTDIR [--cache-dir CACHE_DIR] [--min-asv-length MIN_ASV_LENGTH] [--max-asv-length MAX_ASV_LENGTH] [--force] [--model-12s MODEL_12S] [--model-16s MODEL_16S]
-                           [--base-config BASE_CONFIG] [--revision-12s REVISION_12S] [--revision-16s REVISION_16S] [--config-revision CONFIG_REVISION] [--pooling-token {mean,cls}]
+usage: calculatePerSite.py [-h] [--12s-files [12S_FILES ...]] [--16s-files [16S_FILES ...]] [--12s-fasta 12S_FASTA] [--12s-counts 12S_COUNTS]
+                           [--16s-fasta 16S_FASTA] [--16s-counts 16S_COUNTS] --outdir OUTDIR [--cache-dir CACHE_DIR] [--min-asv-length MIN_ASV_LENGTH]
+                           [--max-asv-length MAX_ASV_LENGTH] [--force] [--model-12s MODEL_12S] [--model-16s MODEL_16S] [--base-config BASE_CONFIG]
+                           [--revision-12s REVISION_12S] [--revision-16s REVISION_16S] [--config-revision CONFIG_REVISION] [--pooling-token {mean,cls}]
                            [--batch-size BATCH_SIZE] [--use-amp] [--max-length MAX_LENGTH] [--weight-mode {hellinger,log,relative,softmax_tau3,clr}]
-                           [--site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3,simple_mean}] [--run-tsne] [--run-umap] [--perplexity PERPLEXITY] [--n-neighbors N_NEIGHBORS]
-                           [--metric {cosine,euclidean}] [--seed SEED] [--fuse {none,concat}]
+                           [--site-pooling {l2_weighted_mean,weighted_mean,gem_p2,gem_p3,simple_mean}] [--run-tsne] [--run-umap] [--perplexity PERPLEXITY]
+                           [--n-neighbors N_NEIGHBORS] [--metric {cosine,euclidean}] [--seed SEED] [--fuse {none,concat}]
+                           [--log-level {DEBUG,INFO,WARNING,ERROR}] [--no-capture-stdio] [--monitor-resources] [--monitor-interval MONITOR_INTERVAL]
 
 eDNA DNABERT-S embedding pipeline (Excel/FASTA+TSV -> ASVs -> sites -> t-SNE/UMAP)
 
@@ -74,6 +77,12 @@ optional arguments:
   --metric {cosine,euclidean}
   --seed SEED
   --fuse {none,concat}  How to fuse 12S+16S site vectors (concat or none) (default: concat)
+  --log-level {DEBUG,INFO,WARNING,ERROR}
+                        Logging verbosity (default: INFO)
+  --no-capture-stdio    Do not capture STDOUT/STDERR into log (keeps tqdm bars cleaner in console). (default: False)
+  --monitor-resources   Track CPU/memory/GPU usage during the run and log a summary at the end. (default: False)
+  --monitor-interval MONITOR_INTERVAL
+                        Sampling interval in seconds for resource monitoring. (default: 1.0)
 </pre>
 
 # Input
