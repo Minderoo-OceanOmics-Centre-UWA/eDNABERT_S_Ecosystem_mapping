@@ -1,0 +1,26 @@
+[Loading] Primary embeddings: ../analysis_for_paper/ckip10_results_perplexity5/site_embeddings_12S.parquet
+[Loading] Coordinates: samplemetadata.tsv
+[Data] Found collection device with 2 unique devices
+[Data] Collection devices: {'manual niskin': 87, 'underway in-line': 55}
+[Data] Merged 142 rows with embeddings and coordinates
+[Data] Unique base sites: 30
+[Split] Training: 116 samples across 24 base sites
+[Split] Testing:  26 samples across 6 base sites
+[Optimizing] Hyperparameters with GroupKFold...
+[Best params] {'reg__estimator__learning_rate': 0.01, 'reg__estimator__max_depth': 3, 'reg__estimator__n_estimators': 200, 'reg__estimator__subsample': 0.8}
+[CV] Best cross-validation R² (GroupKFold): -0.1506
+[Saved] Feature importance: embedding_regress_output/feature_importance.csv
+
+==================================================
+REGRESSION RESULTS (XGB (optimized))
+==================================================
+Cross-validation R² (mean): -0.1506 (±0.0000)
+Test R² (overall):          0.2134
+Test MSE (overall):         6.6353
+Test MAE (overall):         2.3265
+Haversine km — mean: 348.556, median: 349.907, p90: 591.281
+[Saved] Detailed results: embedding_regress_output/regression_results.csv
+[Saved] Summary metrics: embedding_regress_output/regression_summary.json
+[Saved] Prediction plot: embedding_regress_output/coordinate_predictions.png
+
+[Done] All results saved to: embedding_regress_output

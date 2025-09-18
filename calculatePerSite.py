@@ -14,6 +14,8 @@ import numpy as np
 import pandas as pd
 import openpyxl
 
+from util.diagnostics import run_diagnostics
+
 # get rid of boring user warning
 # UserWarning: Data Validation extension is not supported and will be removed
 openpyxl.reader.excel.warnings.simplefilter(action="ignore")
@@ -1085,6 +1087,12 @@ def main():
         action="store_true",
         help="Force recalculation of all steps, ignoring existing intermediate files",
     )
+    parser.add_argument(
+        "--diagnose-quality",
+        action="store_true",
+        help="Run embedding quality diagnostics to identify problematic samples"
+    )
+
 
     parser.add_argument("--model-12s", default="OceanOmics/eDNABERT-S_12S")
     parser.add_argument("--model-16s", default="OceanOmics/eDNABERT-S_16S")
@@ -1431,6 +1439,20 @@ def main():
             write_parquet(site_df, outp)
             site_embeddings[assay] = site_df
 
+        if args.diagnose_quality: 
+            logger_root.info("=== Running Quality Diagnostics ===")
+            for assay in assays_available:
+                asv_emb = pd.read_parquet(asv_embeddings_paths[assay])
+                sub_reads = reads_long[reads_long["assay"] == assay]
+                sub_seqs = asv_seqs[asv_seqs["assay"] == assay]
+
+                diagnostics = run_diagnostics(
+                    assay, sub_seqs, asv_emb, sub_reads,
+                    site_embeddings[assay], args.outdir
+                )
+            logger_root.info(f"Diagnostics completed for {assay}")
+
+
         # optional fusion/12S+16S concatenation
         fused_df = pd.DataFrame()
         if args.fuse == "concat" and {"12S", "16S"} <= set(site_embeddings.keys()):
@@ -1438,10 +1460,10 @@ def main():
 
             # Check if we can resume from existing fused embeddings
             if not force_recalc and resume_status.get("can_resume_fused", False):
-                logger_root.info(f"\n=== Resuming fused embeddings from {outp} ===")
+                logger_root.info(f"=== Resuming fused embeddings from {outp} ===")
                 fused_df = pd.read_parquet(outp)
             else:
-                logger_root.info("\n=== Fusing 12S+16S by concatenation ===")
+                logger_root.info("=== Fusing 12S+16S by concatenation ===")
                 s12 = site_embeddings["12S"][
                     ["site_id"]
                     + [
@@ -1527,7 +1549,7 @@ def main():
             fused_df2["assay"] = "fused"
             _run_ordinations("fused", fused_df2)
 
-        logger_root.info("\n[Done] Pipeline completed successfully.")
+        logger_root.info("[Done] Pipeline completed successfully.")
 
     finally:
         # Always stop monitor and log summary, even on exceptions

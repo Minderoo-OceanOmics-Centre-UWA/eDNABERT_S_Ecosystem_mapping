@@ -1,0 +1,28 @@
+{
+  "model": "XGB (optimized)",
+  "baseline_type": "taxonomic_composition_plus_collection_device",
+  "grouped_splitting": true,
+  "cv_strategy": "GroupKFold",
+  "cv_folds": 5,
+  "cv_r2_mean": 0.3891933187395968,
+  "cv_r2_std": 0.0,
+  "test_r2_overall": 0.6913809508327737,
+  "test_mse_overall": 2.603400019281012,
+  "test_mae_overall": 1.3878506128784185,
+  "test_haversine_km_mean": 212.21296155649367,
+  "test_haversine_km_median": 208.99377286138517,
+  "test_haversine_km_p90": 342.87705199368236,
+  "n_features": 250,
+  "n_train_samples": 116,
+  "n_test_samples": 26,
+  "n_train_base_sites": 24,
+  "n_test_base_sites": 6,
+  "n_total_base_sites": 30,
+  "hyperparameter_optimization": true,
+  "best_params": {
+    "reg__estimator__learning_rate": 0.1,
+    "reg__estimator__max_depth": 3,
+    "reg__estimator__n_estimators": 300,
+    "reg__estimator__subsample": 0.8
+  }
+}
