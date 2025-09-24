@@ -1,0 +1,27 @@
+{
+  "model": "XGB (optimized)",
+  "grouped_splitting": true,
+  "cv_strategy": "GroupKFold",
+  "cv_folds": 5,
+  "cv_r2_mean": 0.22752886207595205,
+  "cv_r2_std": 0.0,
+  "test_r2": 0.4164287404975965,
+  "test_mse": 1.006894964368114,
+  "test_mae": 0.804898988807092,
+  "n_features": 769,
+  "n_train_samples": 116,
+  "n_test_samples": 26,
+  "n_train_base_sites": 24,
+  "n_test_base_sites": 6,
+  "n_total_base_sites": 30,
+  "hyperparameter_optimization": true,
+  "fusion": "none",
+  "has_16s": false,
+  "best_params": {
+    "reg__colsample_bytree": 0.8,
+    "reg__learning_rate": 0.1,
+    "reg__max_depth": 3,
+    "reg__n_estimators": 400,
+    "reg__subsample": 0.8
+  }
+}

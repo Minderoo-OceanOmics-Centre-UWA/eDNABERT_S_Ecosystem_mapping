@@ -1,0 +1,33 @@
+[Loading] ASV data: asv_lca_with_fishbase_output.tsv
+[Filter] Applied %ID cutoff: 97.0. 150 rows set to 'unknown'.
+[Loading] Sample metadata: samplemetadata.tsv
+[Data] Found collection device with 2 unique devices
+[Data] Collection devices: {'manual niskin': 87, 'underway in-line': 55}
+[Data] Found 206 sample columns (excluding controls)
+[Data] Processing 1613 ASVs across 206 samples
+[Data] Found 249 unique taxonomic groups
+[Data] Feature matrix: 206 samples × 249 taxonomic features
+[Data] Merged 142 samples with features and coordinates
+[Data] Unique base sites: 142
+[Data] Encoded devices: {'manual niskin': 0, 'underway in-line': 1}
+[Data] Features: 249 taxonomic + 1 device = 250 total
+[Split] Training: 113 samples across 113 base sites
+[Split] Testing:  29 samples across 29 base sites
+[Optimizing] Hyperparameters with GroupKFold...
+[Best params] {'reg__estimator__learning_rate': 0.2, 'reg__estimator__max_depth': 3, 'reg__estimator__n_estimators': 200, 'reg__estimator__subsample': 1.0}
+[CV] Best cross-validation R² (GroupKFold): 0.7944
+[Saved] Feature importance: baseline_regress_no_replicates/feature_importance.csv
+
+======================================================================
+TAXONOMIC + DEVICE BASELINE RESULTS (XGB (optimized))
+======================================================================
+Cross-validation R² (mean): 0.7944 (±0.0000)
+Test R² (overall):          0.8223
+Test MSE (overall):         2.3142
+Test MAE (overall):         1.1051
+Haversine km — mean: 168.979, median: 126.911, p90: 339.283
+[Saved] Detailed results: baseline_regress_no_replicates/regression_results.csv
+[Saved] Summary metrics: baseline_regress_no_replicates/regression_summary.json
+[Saved] Prediction plot: baseline_regress_no_replicates/coordinate_predictions.png
+
+[Done] Baseline results saved to: baseline_regress_no_replicates

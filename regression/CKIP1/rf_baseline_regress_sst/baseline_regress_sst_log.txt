@@ -1,0 +1,33 @@
+[Loading] ASV data: asv_lca_with_fishbase_output.tsv
+[Filter] Applied %ID cutoff: 97.0. 150 rows set to 'unknown'.
+[Loading] Sample metadata: samplemetadata.tsv
+[Data] Collection devices: {'manual niskin': 87, 'underway in-line': 55}
+[Loading] SST table: samplemetadata_sst.tsv
+[Data] Found 206 sample columns (excluding controls)
+[Data] Processing 1613 ASVs across 206 samples
+[Data] Found 249 unique taxonomic groups
+[Data] Feature matrix: 206 samples × 249 taxonomic features
+[Data] Merged 142 samples with features, device and SST
+[Data] Unique base sites: 30
+[Data] Encoded devices: {'manual niskin': 0, 'underway in-line': 1}
+[Data] Features: 249 taxonomic + 1 device = 250 total
+[Split] Training: 116 samples across 24 base sites
+[Split] Testing:  26 samples across 6 base sites
+[Optimizing] Hyperparameters with GroupKFold...
+[Best params] {'reg__max_depth': 10, 'reg__min_samples_split': 5, 'reg__n_estimators': 200}
+[CV] Best cross-validation R² (GroupKFold): 0.4267
+[Saved] Feature importance: baseline_regress_sst/feature_importance.csv
+
+======================================================================
+TAXONOMIC + DEVICE → SST RESULTS (RF (optimized))
+======================================================================
+Cross-validation R² (mean): 0.4267 (±0.0000)
+Test R²:    0.6296
+Test RMSE:  0.7994 °C
+Test MAE:   0.6476 °C
+Bias (Δ):   0.0327 °C
+[Saved] Detailed results: baseline_regress_sst/regression_results.csv
+[Saved] Summary metrics: baseline_regress_sst/regression_summary.json
+[Saved] Prediction plot: baseline_regress_sst/coordinate_predictions.png
+
+[Done] Baseline SST results saved to: baseline_regress_sst

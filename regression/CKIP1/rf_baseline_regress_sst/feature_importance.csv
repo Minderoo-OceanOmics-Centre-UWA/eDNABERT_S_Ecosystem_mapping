@@ -1,0 +1,270 @@
+feature,importance,feature_type
+genus:Dasyscopelus,0.3148414086259784,taxonomic
+species:Cyclothone pseudopallida,0.10433669878673879,taxonomic
+genus:Thunnus,0.09133574746065366,taxonomic
+family:Exocoetidae,0.08294204242669838,taxonomic
+genus:Cyclothone,0.057445799692168405,taxonomic
+family:Phosichthyidae,0.047013012848255625,taxonomic
+species:Hygophum hygomii,0.03230737108567432,taxonomic
+species:Spratelloides gracilis,0.02902331864301872,taxonomic
+species:Lampanyctus alatus,0.0278678879544192,taxonomic
+species:Scopelopsis multipunctatus,0.0270568600783126,taxonomic
+species:Gonorynchus greyi,0.026850381252266933,taxonomic
+genus:Trachurus,0.019143663607172037,taxonomic
+species:Cubiceps sp.,0.015046564815479366,taxonomic
+species:Bolinichthys photothorax,0.011285437815991601,taxonomic
+species:Triphoturus nigrescens,0.009080261840260657,taxonomic
+species:Symbolophorus evermanni,0.00721876537409274,taxonomic
+species:Diaphus perspicillatus,0.004807631989144565,taxonomic
+order:Scombriformes,0.0047719587197184365,taxonomic
+species:Coris aygula,0.004293826390236643,taxonomic
+species:Lampanyctus nobilis,0.004223711986440148,taxonomic
+species:Taractichthys longipinnis,0.004070086255685299,taxonomic
+genus:Ariosoma,0.0036872923101242965,taxonomic
+species:Lobianchia dofleini,0.0036109723669459377,taxonomic
+species:Halichoeres trimaculatus,0.0030601188466959427,taxonomic
+species:Serrivomer samoensis,0.0024706664192687203,taxonomic
+genus:Lethrinus,0.0023571993576796267,taxonomic
+genus:Sardinops,0.0019138296934318078,taxonomic
+genus:Ceratoscopelus,0.0017717749227838147,taxonomic
+species:Cirripectes randalli,0.0016512227795835053,taxonomic
+species:Cubiceps baxteri,0.0016382910972362527,taxonomic
+genus:Lobianchia,0.0016008312783128958,taxonomic
+samp_collect_device_encoded,0.0015942919767891973,collection_device
+species:Tetragonurus atlanticus,0.0015150196402554154,taxonomic
+genus:Bolinichthys,0.001421614531575212,taxonomic
+species:Hygophum sp.,0.001419413202793827,taxonomic
+species:Synodus dermatogenys,0.0013760280502714923,taxonomic
+family:Leuciscidae,0.001283796156398118,taxonomic
+species:Hemigymnus fasciatus,0.0012518784506729294,taxonomic
+genus:Notoscopelus,0.0011898967988662186,taxonomic
+species:Pteraclis aesticola,0.0011658138643123694,taxonomic
+species:Regalecus glesne,0.001153898775320502,taxonomic
+genus:Stomias,0.0011510629337265414,taxonomic
+species:Diaphus garmani,0.0011127655674053323,taxonomic
+species:Hygophum proximum,0.001107190639578106,taxonomic
+species:Diaphus brachycephalus,0.0011033002344221486,taxonomic
+species:Lagocephalus lagocephalus,0.0010712157687842508,taxonomic
+family:Cottidae,0.0010647503529133669,taxonomic
+genus:Diaphus,0.0009969042459085718,taxonomic
+species:Alburnoides bipunctatus,0.000941793360241715,taxonomic
+species:Diaphus lucidus,0.0009400428098715061,taxonomic
+species:Scopelarchoides danae,0.0008587483739187306,taxonomic
+species:Nealotus tripes,0.0008481658974754425,taxonomic
+species:Atherinomorus sp.,0.0008442503666043229,taxonomic
+species:Maurolicus sp.,0.0008331906988990199,taxonomic
+genus:Scolopsis,0.0008067058542865599,taxonomic
+species:Chauliodus sloani,0.0007729483542419821,taxonomic
+genus:Thaumatichthys,0.0007196334834883463,taxonomic
+genus:Himantolophus,0.0006785573150972907,taxonomic
+species:Diaphus aliciae,0.0006610185270058886,taxonomic
+species:Desmodema polystictum,0.0006257402140408076,taxonomic
+species:Nomeus gronovii,0.0005976764768541128,taxonomic
+genus:Anampses,0.0005726773028300528,taxonomic
+species:Stethojulis strigiventer,0.00056115276312631,taxonomic
+species:Austrolabrus maculatus,0.0005568642264939952,taxonomic
+species:Benthosema suborbitale,0.0005411613908983938,taxonomic
+genus:Scomber,0.0005386316187288334,taxonomic
+species:Amblyglyphidodon leucogaster,0.0005318894561077673,taxonomic
+species:Diaphus phillipsi,0.0005287138741680837,taxonomic
+species:Diaphus splendidus,0.0005253133206974086,taxonomic
+species:Sladenia gardineri,0.0004921804007544545,taxonomic
+species:Spratelloides robustus,0.0004904787591012873,taxonomic
+species:Grammatorcynus bicarinatus,0.0004773975710256485,taxonomic
+species:Notoscopelus caudispinosus,0.0004663093978213103,taxonomic
+species:Diaphus fragilis,0.0004448260104218531,taxonomic
+species:Cyclothone sp.,0.00043639262886354177,taxonomic
+family:Scombridae,0.0004021495532537006,taxonomic
+genus:Kyphosus,0.0003908926417008216,taxonomic
+species:Myctophum nitidulum,0.0003888582847377358,taxonomic
+species:Diplophos australis,0.00038697080937454524,taxonomic
+species:Magnisudis atlantica,0.0003815445908834472,taxonomic
+species:Ranzania laevis,0.0003662086258565261,taxonomic
+species:Hypoplectrodes cardinalis,0.00036428753137356183,taxonomic
+family:Centriscidae,0.0003611230342576456,taxonomic
+species:Cnidoglanis macrocephalus,0.00034723457282186067,taxonomic
+species:Hypoatherina tropicalis,0.00034341119744008117,taxonomic
+species:Hemigymnus melapterus,0.0003360200692955689,taxonomic
+species:Plectroglyphidodon leucozona,0.00029115861460498547,taxonomic
+family:Caesionidae,0.0002719208028597636,taxonomic
+species:Lampadena luminosa,0.0002649114185863033,taxonomic
+species:Bathophilus pawneei,0.0002582090325383193,taxonomic
+genus:Abudefduf,0.0002476898811555289,taxonomic
+genus:Lagocephalus,0.00024237057087132403,taxonomic
+species:Psettina senta,0.0002403158962505596,taxonomic
+genus:Hyporhamphus,0.00023986960953510653,taxonomic
+species:Melanocetus johnsonii,0.00023888170665321173,taxonomic
+genus:Chiasmodon,0.00023349235204406132,taxonomic
+species:Stomias danae,0.00022887216310905944,taxonomic
+genus:Cubiceps,0.0002249240088994305,taxonomic
+species:Squalius cephalus,0.0002183621494189698,taxonomic
+species:Pempheris klunzingeri,0.00021388948593648567,taxonomic
+genus:Cheilopogon,0.00021318141036829856,taxonomic
+genus:Upeneus,0.00020174431995901595,taxonomic
+species:Diaphus effulgens,0.00018367347410790905,taxonomic
+genus:Pempheris,0.00018103276816158623,taxonomic
+family:Gobiidae,0.00017835910012879185,taxonomic
+species:Alepisaurus ferox,0.00017723343399317948,taxonomic
+genus:Pomacentrus,0.00017326352590557177,taxonomic
+species:Gempylus serpens,0.0001631145696233616,taxonomic
+species:Pseudochromis tapeinosoma,0.000161115224475985,taxonomic
+species:Cirripectes filamentosus,0.00015848992825388667,taxonomic
+species:Onigocia pedimacula,0.00015293638238729685,taxonomic
+genus:Mola,0.00014157734609582685,taxonomic
+species:Diaphus termophilus,0.0001373423997401343,taxonomic
+family:Nemichthyidae,0.00013532534465439551,taxonomic
+species:Eustomias tomentosis,0.00013455347111774135,taxonomic
+family:Myctophidae,0.00012982247674477084,taxonomic
+genus:Chauliodus,0.00012307025856247888,taxonomic
+genus:Engraulis,0.00011794865125050206,taxonomic
+species:Stemonidium hypomelas,0.00011400410337651361,taxonomic
+species:Pelates octolineatus,0.00011254372819128015,taxonomic
+family:Istiophoridae,0.00010874556543085375,taxonomic
+species:Evermannella indica,0.00010825342650346472,taxonomic
+species:Diaphus parri,0.00010001017094070326,taxonomic
+genus:Etrumeus,9.629025881021596e-05,taxonomic
+genus:Lophotus,8.79144936475316e-05,taxonomic
+species:Lampadena notialis,8.440365167575955e-05,taxonomic
+genus:Chromis,8.343723466209404e-05,taxonomic
+species:Lethrinus genivittatus,7.276910168065571e-05,taxonomic
+family:Labridae,7.094173879286157e-05,taxonomic
+species:Scarus ghobban,6.705843435860187e-05,taxonomic
+species:Acanthurus nigrofuscus,6.374112375131082e-05,taxonomic
+genus:Chaetodon,6.35416197158862e-05,taxonomic
+species:Monacanthus chinensis,6.199820558140268e-05,taxonomic
+species:Gigantura indica,5.843371696556686e-05,taxonomic
+species:Vinciguerria lucetia,5.550603910418431e-05,taxonomic
+species:Xiphias gladius,5.2973509924765474e-05,taxonomic
+species:Eustomias sp.,4.994084162243962e-05,taxonomic
+species:Notoscopelus sp.,4.6250880972688205e-05,taxonomic
+species:Stemonosudis sp.,4.4580984941824894e-05,taxonomic
+species:Pseudoscopelus astronesthidens,4.360197734774669e-05,taxonomic
+genus:Lampanyctus,4.306345886143603e-05,taxonomic
+species:Scopelosaurus ahlstromi,3.890880227020425e-05,taxonomic
+species:Pristipomoides multidens,3.598538996597744e-05,taxonomic
+genus:Chascanopsetta,3.503443665172845e-05,taxonomic
+species:Centrobranchus nigroocellatus,3.412558772449363e-05,taxonomic
+species:Plectropomus leopardus,3.142271740226389e-05,taxonomic
+species:Zu cristatus,3.1040654136526136e-05,taxonomic
+species:Pteraclis velifera,3.074283040570513e-05,taxonomic
+genus:Regalecus,2.9714216640086818e-05,taxonomic
+genus:Engyprosopon,2.745477387348869e-05,taxonomic
+genus:Gnatholepis,2.6333267135078056e-05,taxonomic
+species:Brotulotaenia crassa,2.6052144189695794e-05,taxonomic
+genus:Seriola,2.507319348681716e-05,taxonomic
+species:Parupeneus chrysopleuron,2.431000857903738e-05,taxonomic
+family:Gonostomatidae,2.4227890852273315e-05,taxonomic
+genus:Stegastes,2.3742364287062447e-05,taxonomic
+species:Acanthurus triostegus,2.2195888267256248e-05,taxonomic
+species:Brama japonica,2.123627708499077e-05,taxonomic
+species:Pentapodus sp.,2.1130707249334665e-05,taxonomic
+species:Thalassoma ballieui,2.0741355435660725e-05,taxonomic
+species:Malacosteus niger,2.0621881176439827e-05,taxonomic
+species:Notolychnus valdiviae,2.0308623616650618e-05,taxonomic
+species:Blenniella chrysospilos,1.9936328991708933e-05,taxonomic
+species:Heteroscarus acroptilus,1.9075613781351207e-05,taxonomic
+species:Platycephalus grandispinis,1.7564657337922094e-05,taxonomic
+species:Sphyraena japonica,1.6745302967732492e-05,taxonomic
+species:Plectrogenium nanum,1.6318732706287345e-05,taxonomic
+species:Remora osteochir,1.5754197222721527e-05,taxonomic
+genus:Istiblennius,1.5388472856572744e-05,taxonomic
+genus:Sardinella,1.5234156578684389e-05,taxonomic
+species:Naso lituratus,1.3638291065247097e-05,taxonomic
+species:Cubiceps paradoxus,1.3522487563286267e-05,taxonomic
+species:Scarus rivulatus,1.3436059377164411e-05,taxonomic
+genus:Pagrus,1.2780386200322344e-05,taxonomic
+order:Centrarchiformes,1.2124139030926045e-05,taxonomic
+genus:Siganus,1.0616064279338792e-05,taxonomic
+genus:Ostorhinchus,1.0477119853177628e-05,taxonomic
+species:Cyclothone obscura,1.0350773155688596e-05,taxonomic
+genus:Scarus,1.003599601097281e-05,taxonomic
+genus:Bathylagichthys,9.085102186574066e-06,taxonomic
+genus:Decapterus,9.014471226021844e-06,taxonomic
+species:Siphonognathus radiatus,8.565400626315978e-06,taxonomic
+genus:Plotosus,7.510337567170723e-06,taxonomic
+species:Stegastes lacrymatus,6.620910499750852e-06,taxonomic
+genus:Tetrosomus,6.343362659981528e-06,taxonomic
+genus:Cephalopholis,6.1910197361695355e-06,taxonomic
+genus:Atherinomorus,6.178911112354628e-06,taxonomic
+species:Acanthurus dussumieri,6.1582237462545556e-06,taxonomic
+genus:Bathytoshia,6.056043917802907e-06,taxonomic
+species:Ostorhinchus rueppellii,5.959281822078551e-06,taxonomic
+species:Myctophum phengodes,5.540946852442437e-06,taxonomic
+genus:Torquigener,5.415774272716e-06,taxonomic
+species:Notoscopelus resplendens,5.089656812122223e-06,taxonomic
+species:Coryphaena equiselis,5.034809203919524e-06,taxonomic
+genus:Astronesthes,4.856144206773185e-06,taxonomic
+species:Myctophum lychnobium,4.554148601366252e-06,taxonomic
+species:Acanthocybium solandri,4.167331711940794e-06,taxonomic
+species:Glyptoparus delicatulus,4.135500221682171e-06,taxonomic
+species:Photostomias liemi,4.092711199718301e-06,taxonomic
+family:Sparidae,3.9749170273932764e-06,taxonomic
+species:Luvarus imperialis,3.5761445268970815e-06,taxonomic
+species:Amblygobius phalaena,3.4595338170753163e-06,taxonomic
+species:Spratelloides delicatulus,2.850823688601045e-06,taxonomic
+species:Nemichthys scolopaceus,2.8116700209077654e-06,taxonomic
+genus:Nansenia,2.68730592205726e-06,taxonomic
+species:Lepidocybium flavobrunneum,2.627535452092047e-06,taxonomic
+species:Helcogramma COLOR105-15,2.383514401861055e-06,taxonomic
+species:Taractes asper,2.0889330603495113e-06,taxonomic
+genus:Suezichthys,1.4187852455338387e-06,taxonomic
+family:Pomacentridae,1.3788582749579005e-06,taxonomic
+species:Dysalotus sp.,7.03452638775082e-07,taxonomic
+genus:Psenes,5.431402642912227e-07,taxonomic
+genus:Pterycombus,4.2747875682446227e-07,taxonomic
+family:Apogonidae,2.3779570307073652e-07,taxonomic
+genus:Thalassoma,2.108395201793775e-07,taxonomic
+genus:Chlorurus,2.0154794415582202e-07,taxonomic
+species:Caesioscorpis theagenes,1.9987559067887285e-07,taxonomic
+species:Asterropteryx semipunctata,1.896058802816386e-07,taxonomic
+species:Epinephelus fasciatus,1.545095939597852e-07,taxonomic
+species:Cetostoma regani,1.487143599033389e-07,taxonomic
+species:Caranx ignobilis,1.1348444514064467e-07,taxonomic
+species:Halichoeres argus,1.0094914126005343e-07,taxonomic
+species:Lampanyctus pusillus,8.439151976534183e-08,taxonomic
+family:Chiasmodontidae,7.338082556759653e-08,taxonomic
+species:Myctophum orientale,4.9070634570783765e-08,taxonomic
+species:Parablennius sp.,2.4564517350001277e-08,taxonomic
+species:Ecsenius mandibularis,1.1980256423941531e-08,taxonomic
+family:Tetraodontidae,5.28119130526234e-17,taxonomic
+species:Echiostoma barbatum,4.3177344628839006e-17,taxonomic
+species:Diretmichthys parini,2.776224233173035e-17,taxonomic
+species:Oxyconger leptognathus,2.3963080076949344e-17,taxonomic
+species:Engraulis encrasicolus,2.295103825908509e-17,taxonomic
+species:Diogenichthys sp.,1.8707744344293635e-17,taxonomic
+species:Parupeneus ciliatus,1.1764884893030083e-17,taxonomic
+genus:Caulophryne,1.7429158020321342e-18,taxonomic
+species:Brama brama,9.529382272630625e-19,taxonomic
+species:Vinciguerria attenuata,0.0,taxonomic
+genus:Hypoatherina,0.0,taxonomic
+species:Sphyraena obtusata,0.0,taxonomic
+family:Carangidae,0.0,taxonomic
+family:Bramidae,0.0,taxonomic
+genus:Hemigymnus,0.0,taxonomic
+genus:Gigantactis,0.0,taxonomic
+genus:Coris,0.0,taxonomic
+species:Scopeloberyx opisthopterus,0.0,taxonomic
+species:Melanostomias valdiviae,0.0,taxonomic
+species:Cybiosarda elegans,0.0,taxonomic
+species:Cyclothone pallida,0.0,taxonomic
+species:Diaphus regani,0.0,taxonomic
+species:Dinematichthys iluocoeteoides,0.0,taxonomic
+species:Epinephelus rivulatus,0.0,taxonomic
+species:Arripis georgianus,0.0,taxonomic
+species:Halichoeres nebulosus,0.0,taxonomic
+species:Lampanyctus intricarius,0.0,taxonomic
+species:Lethrinus miniatus,0.0,taxonomic
+species:Melanostomias biseriatus,0.0,taxonomic
+species:Ogilbyina novaehollandiae,0.0,taxonomic
+genus:Mobula,0.0,taxonomic
+genus:Pteronotropis,0.0,taxonomic
+species:Ostorhinchus schlegeli,0.0,taxonomic
+species:Parexocoetus mento,0.0,taxonomic
+species:Parma sp.,0.0,taxonomic
+genus:Plesiops,0.0,taxonomic
+species:Prionace glauca,0.0,taxonomic
+genus:Ctenogobiops,0.0,taxonomic
+species:Salarias fasciatus,0.0,taxonomic
+species:Scarus psittacus,0.0,taxonomic
+species:Scarus rubroviolaceus,0.0,taxonomic
+class:Teleostei,0.0,taxonomic

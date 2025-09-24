@@ -1,0 +1,22 @@
+[Loading] Primary embeddings: ../analysis_for_paper/ckip10_results_perplexity5/site_embeddings_12S.parquet
+[Loading] Metadata: samplemetadata.tsv
+[Loading] SST table: samplemetadata_sst.tsv
+[Split] Training: 116 samples across 24 base sites
+[Split] Testing:  26 samples across 6 base sites
+[Optimizing] Hyperparameters with GroupKFold...
+[Best params] {'reg__colsample_bytree': 0.8, 'reg__learning_rate': 0.1, 'reg__max_depth': 3, 'reg__n_estimators': 400, 'reg__subsample': 0.8}
+[CV] Best GroupKFold R²: 0.2275
+[Saved] Feature importance: sst_embedding_regress_output/feature_importance.csv
+
+==================================================
+SST REGRESSION RESULTS (XGB (optimized))
+==================================================
+CV R² (mean): 0.2275 (±0.0000)
+Test R²:       0.4164
+Test MSE:      1.0069
+Test MAE:      0.8049
+[Saved] Detailed results: sst_embedding_regress_output/regression_results_sst.csv
+[Saved] Summary: sst_embedding_regress_output/regression_summary_sst.json
+[Saved] Prediction plot: sst_embedding_regress_output/sst_predictions.png
+
+[Done] All outputs saved to: sst_embedding_regress_output

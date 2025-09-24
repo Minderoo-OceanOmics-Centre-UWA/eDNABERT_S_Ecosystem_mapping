@@ -15,7 +15,7 @@ def diagnose_embedding_quality(asv_seqs, asv_embeddings, reads_long, site_embedd
     """
     diagnostics = {}
     
-    print("=== Analyzing Sequence Quality ===")
+    print("=== Analysing Sequence Quality ===")
     seq_issues = analyse_sequence_quality(asv_seqs)
     diagnostics['problematic_sequences'] = seq_issues
     print(f"Found {len(seq_issues)} potentially problematic sequences")
@@ -25,7 +25,7 @@ def diagnose_embedding_quality(asv_seqs, asv_embeddings, reads_long, site_embedd
     diagnostics['embedding_outliers'] = embedding_outliers
     print(f"Found {len(embedding_outliers)} embedding outliers")
     
-    print("=== Analyzing Site Characteristics ===")
+    print("=== Analysing Site Characteristics ===")
     site_diagnostics = analyse_site_characteristics(reads_long, site_embeddings)
     diagnostics['site_characteristics'] = site_diagnostics
     

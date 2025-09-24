@@ -1,0 +1,29 @@
+{
+  "model": "RF (optimized)",
+  "baseline_type": "taxonomic_composition_plus_collection_device",
+  "target": "sst_celsius",
+  "grouped_splitting": true,
+  "cv_strategy": "GroupKFold",
+  "cv_folds": 5,
+  "cv_r2_mean": 0.4266645782958497,
+  "cv_r2_std": 0.0,
+  "test_r2": 0.6296293382035747,
+  "test_rmse_c": 0.7993986779973932,
+  "test_mae_c": 0.6475784503539637,
+  "test_bias_c": 0.03270364343166813,
+  "n_features": 250,
+  "n_train_samples": 116,
+  "n_test_samples": 26,
+  "n_train_base_sites": 24,
+  "n_test_base_sites": 6,
+  "n_total_base_sites": 30,
+  "hyperparameter_optimization": true,
+  "sst_table": "samplemetadata_sst.tsv",
+  "sst_col": "sst",
+  "sst_id_col": "samp_name",
+  "best_params": {
+    "reg__max_depth": 10,
+    "reg__min_samples_split": 5,
+    "reg__n_estimators": 200
+  }
+}
