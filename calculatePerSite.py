@@ -1080,6 +1080,12 @@ def main():
         default=None,
         help="Maximum ASV sequence length (optional)",
     )
+    parser.add_argument(
+        "--min-reads",
+        type=int,
+        default=100,
+        help="Minimum read count per ASV per site to include in site embedding calculations"
+    )
 
     # Resume functionality
     parser.add_argument(
@@ -1308,6 +1314,11 @@ def main():
         logger_root.info(
             f"[Loaded] ASV sequences: {len(asv_seqs)} rows, Reads: {len(reads_long)} rows"
         )
+
+        if args.min_reads > 0:
+            before = len(reads_long)
+            reads_long = reads_long[reads_long["reads"] >= args.min_reads]
+            logger_root.info(f"[Filter] Applied min-reads={args.min_reads}: {before:,} → {len(reads_long):,} records")
 
         for cols, name in [
             ({"asv_id", "assay", "sequence"}, "asv_sequences"),
